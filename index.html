@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f8e9d5">
+  <meta name="description" content="Puchate Café — ciepła gra karciana o prowadzeniu kawiarni dla zwierzaków.">
+  <title>Puchate Café</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Przejdź do gry</a>
+
+  <div class="app-shell">
+    <header class="topbar" aria-label="Pasek gry">
+      <button class="brand" type="button" data-action="home" aria-label="Wróć do menu głównego">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span><strong>Puchate</strong><small>Café</small></span>
+      </button>
+      <div class="topbar-actions">
+        <button class="icon-button" type="button" data-action="toggle-sound" aria-label="Włącz lub wyłącz dźwięki" aria-pressed="true">
+          <span data-icon="sound" aria-hidden="true"></span>
+        </button>
+        <button class="soft-button rules-button" type="button" data-action="rules" aria-label="Zasady gry">
+          <span data-icon="book" aria-hidden="true"></span><span>Zasady</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section id="home-screen" class="screen home-screen is-active" aria-labelledby="home-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="live-dot"></span> Kawiarnia właśnie się otwiera</p>
+          <h1 id="home-title">Podaj filiżankę.<br><em>Zdobądź serca.</em></h1>
+          <p class="hero-lead">Wybieraj słodkości, przyjmuj puchatych gości i stwórz najpopularniejszą kawiarnię w mieście.</p>
+          <div class="hero-actions">
+            <button class="primary-button" type="button" data-action="solo">
+              <span data-icon="sparkle" aria-hidden="true"></span>
+              Graj z botami
+            </button>
+            <button class="secondary-button" type="button" data-action="multiplayer">
+              <span data-icon="people" aria-hidden="true"></span>
+              Multiplayer
+            </button>
+          </div>
+          <div class="quick-facts" aria-label="Informacje o grze">
+            <span><b>2–5</b> graczy</span><i aria-hidden="true"></i>
+            <span><b>3</b> rundy</span><i aria-hidden="true"></i>
+            <span><b>15 min</b> zabawy</span>
+          </div>
+        </div>
+
+        <div class="hero-scene" aria-label="Puchaci goście czekają przy kawowym stoliku">
+          <div class="sun-blob"></div>
+          <div class="steam steam-one"></div><div class="steam steam-two"></div>
+          <div class="hero-cup"><span></span><i></i></div>
+          <div class="hero-cat"><span class="ear left"></span><span class="ear right"></span><b></b><i></i><em></em></div>
+          <div class="hero-bunny"><span class="ear left"></span><span class="ear right"></span><b></b><i></i><em></em></div>
+          <div class="hero-table"></div>
+          <div class="floating-cookie cookie-one">✦</div>
+          <div class="floating-cookie cookie-two">✦</div>
+          <p class="scene-note"><span data-icon="heart" aria-hidden="true"></span> +1 szczęśliwy gość</p>
+        </div>
+      </section>
+
+      <section id="setup-screen" class="screen panel-screen" aria-labelledby="setup-title" hidden>
+        <div class="panel-card setup-card">
+          <button class="back-button" type="button" data-action="back-home"><span data-icon="arrow-left" aria-hidden="true"></span> Wróć</button>
+          <div class="panel-heading">
+            <span class="heading-icon heading-icon-peach" data-icon="bot" aria-hidden="true"></span>
+            <div><p class="eyebrow">Gra lokalna</p><h1 id="setup-title">Zaproś boty na kawę</h1><p>Dobierz liczbę rywali i poziom ich sprytu.</p></div>
+          </div>
+          <form id="setup-form" class="form-stack">
+            <label for="player-name">Twoje imię</label>
+            <input id="player-name" name="playerName" type="text" maxlength="20" value="Barista" autocomplete="nickname" required>
+
+            <fieldset class="segmented-field">
+              <legend>Liczba graczy</legend>
+              <div class="segmented-control" id="player-count-options">
+                <label><input type="radio" name="playerCount" value="2"><span>2</span></label>
+                <label><input type="radio" name="playerCount" value="3" checked><span>3</span></label>
+                <label><input type="radio" name="playerCount" value="4"><span>4</span></label>
+                <label><input type="radio" name="playerCount" value="5"><span>5</span></label>
+              </div>
+              <select id="player-count" name="playerCountSelect" aria-label="Liczba graczy">
+                <option value="2">2 graczy</option><option value="3" selected>3 graczy</option><option value="4">4 graczy</option><option value="5">5 graczy</option>
+              </select>
+            </fieldset>
+
+            <label for="bot-difficulty">Poziom botów</label>
+            <select id="bot-difficulty" name="botDifficulty">
+              <option value="easy">Łagodny — wybiera na wyczucie</option>
+              <option value="normal" selected>Bystry — planuje swoje zestawy</option>
+              <option value="hard">Mistrz kawiarni — czyta stół</option>
+            </select>
+            <div class="form-tip"><span data-icon="bulb" aria-hidden="true"></span><p><strong>Wskazówka:</strong> Każdy wybiera jedną kartę, a resztę ręki przekazuje dalej.</p></div>
+            <button class="primary-button full-width" type="submit"><span data-icon="play" aria-hidden="true"></span> Otwórz kawiarnię</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="multiplayer-screen" class="screen panel-screen" aria-labelledby="multiplayer-title" hidden>
+        <div class="panel-card multiplayer-card">
+          <button class="back-button" type="button" data-action="back-home"><span data-icon="arrow-left" aria-hidden="true"></span> Wróć</button>
+          <div class="panel-heading centered-heading">
+            <span class="heading-icon heading-icon-mint" data-icon="people" aria-hidden="true"></span>
+            <div><p class="eyebrow">Prywatny stolik</p><h1 id="multiplayer-title">Graj razem, gdziekolwiek jesteście</h1><p>Utwórz pokój albo dołącz za pomocą sześcioliterowego kodu.</p></div>
+          </div>
+          <div class="mode-grid">
+            <form id="host-form" class="mode-card form-stack">
+              <span class="mode-number">01</span>
+              <span class="mode-icon" data-icon="crown" aria-hidden="true"></span>
+              <h2>Załóż stolik</h2><p>To Ty ustawiasz miejsca i rozpoczynasz grę.</p>
+              <label for="host-name">Twoje imię</label>
+              <input id="host-name" name="hostName" type="text" maxlength="20" value="Gospodarz" autocomplete="nickname" required>
+              <label for="host-player-count">Liczba graczy</label>
+              <select id="host-player-count" name="hostPlayerCount"><option value="2">2 graczy</option><option value="3" selected>3 graczy</option><option value="4">4 graczy</option><option value="5">5 graczy</option></select>
+              <button class="secondary-button full-width" type="submit"><span data-icon="plus" aria-hidden="true"></span> Utwórz pokój</button>
+            </form>
+            <div class="mode-divider" aria-hidden="true"><span>lub</span></div>
+            <form id="join-form" class="mode-card form-stack">
+              <span class="mode-number">02</span>
+              <span class="mode-icon mode-icon-blue" data-icon="door" aria-hidden="true"></span>
+              <h2>Dołącz do stolika</h2><p>Wpisz kod otrzymany od gospodarza.</p>
+              <label for="join-name">Twoje imię</label>
+              <input id="join-name" name="joinName" type="text" maxlength="20" placeholder="np. Maja" autocomplete="nickname" required>
+              <label for="room-code">Kod pokoju</label>
+              <input id="room-code" class="code-input" name="roomCode" type="text" minlength="6" maxlength="6" inputmode="text" autocapitalize="characters" autocomplete="off" placeholder="KAWA12" required>
+              <button class="secondary-button blue-button full-width" type="submit"><span data-icon="arrow-right" aria-hidden="true"></span> Dołącz</button>
+            </form>
+          </div>
+          <details class="connection-settings">
+            <summary><span data-icon="shield" aria-hidden="true"></span> Ustawienia połączenia</summary>
+            <div class="form-stack">
+              <label for="signaling-url">Adres serwera pokoju <span class="optional-label">opcjonalnie</span></label>
+              <input id="signaling-url" name="signalingUrl" type="url" inputmode="url" placeholder="https://twoj-serwer.example.workers.dev" autocomplete="url">
+              <p class="field-help">Potrzebny tylko do gry przez internet. Tryb z botami działa również bez serwera.</p>
+            </div>
+          </details>
+          <p class="privacy-note"><span data-icon="shield" aria-hidden="true"></span> Prywatne połączenie między graczami. Bez konta i rejestracji.</p>
+        </div>
+      </section>
+
+      <section id="lobby-screen" class="screen panel-screen" aria-labelledby="lobby-title" hidden>
+        <div class="panel-card lobby-card">
+          <button class="back-button" type="button" data-action="leave-lobby"><span data-icon="arrow-left" aria-hidden="true"></span> Opuść stolik</button>
+          <div class="panel-heading lobby-heading">
+            <span class="heading-icon heading-icon-mint" data-icon="cup" aria-hidden="true"></span>
+            <div><p class="eyebrow">Poczekalnia</p><h1 id="lobby-title">Stolik prawie gotowy</h1><p>Udostępnij kod znajomym i poczekaj, aż zajmą miejsca.</p></div>
+          </div>
+          <div class="room-code-card">
+            <div><span>Kod pokoju</span><strong id="lobby-code">—— ——</strong></div>
+            <button class="soft-button" type="button" data-action="copy-code"><span data-icon="copy" aria-hidden="true"></span> Kopiuj</button>
+          </div>
+          <div class="lobby-section-heading"><h2>Goście przy stoliku</h2><span id="lobby-count">1 / 3</span></div>
+          <div id="lobby-seats" class="lobby-seats" aria-live="polite">
+            <article class="seat-card is-ready"><span class="avatar avatar-cat">K</span><div><strong>Gospodarz</strong><small>Gospodarz · gotowy</small></div><span class="status-pill">Gotowy</span></article>
+            <article class="seat-card is-waiting"><span class="avatar avatar-empty" data-icon="plus"></span><div><strong>Wolne miejsce</strong><small>Czekamy na gracza…</small></div><span class="waiting-dots"><i></i><i></i><i></i></span></article>
+            <article class="seat-card is-waiting"><span class="avatar avatar-empty" data-icon="plus"></span><div><strong>Wolne miejsce</strong><small>Czekamy na gracza…</small></div><span class="waiting-dots"><i></i><i></i><i></i></span></article>
+          </div>
+          <div class="lobby-footer">
+            <p id="lobby-status" role="status"><span class="spinner" aria-hidden="true"></span> Czekamy na pozostałych gości</p>
+            <div class="lobby-actions" data-host-controls>
+              <button id="fill-bots" class="secondary-button" type="button" data-action="fill-bots"><span data-icon="bot" aria-hidden="true"></span> Dodaj boty</button>
+              <button id="lobby-start" class="primary-button" type="button" data-action="start-multiplayer" disabled><span data-icon="play" aria-hidden="true"></span> Rozpocznij grę</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="game-screen" class="screen game-screen" aria-labelledby="round-label" hidden>
+        <div class="game-hud">
+          <div class="round-info"><span id="round-label">Runda 1 z 3</span><div class="round-progress" aria-hidden="true"><i class="is-filled"></i><i></i><i></i></div></div>
+          <div id="turn-status" class="turn-status" role="status"><span class="pulse-ring"></span> Wybierz kartę</div>
+          <div class="score-chip"><span data-icon="heart" aria-hidden="true"></span><span>Wynik</span><strong id="score-label">0</strong></div>
+        </div>
+
+        <div id="opponents" class="opponents" aria-label="Pozostali gracze"></div>
+
+        <div class="table-center">
+          <div class="table-pattern" aria-hidden="true"></div>
+          <div class="deck-area" aria-label="Talia i kierunek przekazywania">
+            <div class="deck-stack"><i></i><i></i><span data-icon="paw"></span></div>
+            <p><span data-icon="rotate" aria-hidden="true"></span> Ręce wędrują w lewo</p>
+          </div>
+          <section class="your-tableau" aria-labelledby="tableau-title">
+            <div class="tableau-heading"><h2 id="tableau-title">Twoja kawiarnia</h2><span id="tableau-score">0 pkt w rundzie</span></div>
+            <div id="tableau" class="tableau-cards" aria-live="polite"><p class="empty-tableau">Zagrane karty pojawią się tutaj</p></div>
+          </section>
+        </div>
+
+        <section class="hand-dock" aria-labelledby="hand-title">
+          <div class="hand-heading">
+            <div><p class="eyebrow">Twoja ręka</p><h2 id="hand-title">Wybierz jedną kartę</h2></div>
+            <span id="hand-count" class="hand-count">0 kart</span>
+          </div>
+          <div id="hand" class="hand" role="list" aria-live="polite"></div>
+          <div class="hand-actions">
+            <p id="selection-hint"><span data-icon="info" aria-hidden="true"></span> Kliknij kartę, aby poznać jej działanie. Kliknij ponownie, aby wybrać.</p>
+            <button id="confirm-card" class="primary-button" type="button" data-action="confirm-card" disabled><span data-icon="check" aria-hidden="true"></span> Zagraj kartę</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="rules-dialog" class="game-dialog rules-dialog" aria-labelledby="rules-title">
+    <div class="dialog-header"><div><p class="eyebrow">Jak grać</p><h2 id="rules-title">Zasady Puchatego Café</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Zamknij zasady"><span data-icon="close"></span></button></div>
+    <div class="dialog-body rules-body">
+      <ol class="rules-steps">
+        <li><span>1</span><div><strong>Wybierz</strong><p>Zachowaj jedną kartę ze swojej ręki.</p></div></li>
+        <li><span>2</span><div><strong>Odkryj</strong><p>Wszyscy gracze pokazują wybór jednocześnie.</p></div></li>
+        <li><span>3</span><div><strong>Przekaż</strong><p>Oddaj pozostałe karty graczowi po lewej.</p></div></li>
+      </ol>
+      <h3>Jak zdobywać serduszka?</h3>
+      <div class="rules-grid">
+        <article><span class="rule-swatch swatch-cookie" data-icon="cookie"></span><div><strong>Zestawy</strong><p>Łącz ciasteczka w pary i podwieczorki w trójki.</p></div></article>
+        <article><span class="rule-swatch swatch-drink" data-icon="cup"></span><div><strong>Popularność</strong><p>Zdobądź najwięcej filiżanek w rundzie.</p></div></article>
+        <article><span class="rule-swatch swatch-guest" data-icon="heart"></span><div><strong>Goście</strong><p>Każdy klient daje od 1 do 3 punktów.</p></div></article>
+        <article><span class="rule-swatch swatch-adopt" data-icon="paw"></span><div><strong>Adopcja</strong><p>Najwięcej nowych domów daje premię na koniec.</p></div></article>
+      </div>
+      <div class="rule-note"><span data-icon="sparkle"></span><p>Po trzech rundach wygrywa kawiarnia z największą liczbą serduszek.</p></div>
+    </div>
+    <div class="dialog-footer"><button class="primary-button" type="button" data-close-dialog>Rozumiem, gramy!</button></div>
+  </dialog>
+
+  <dialog id="round-dialog" class="game-dialog result-dialog" aria-labelledby="round-result-title">
+    <div class="result-burst" aria-hidden="true">✦</div>
+    <div class="dialog-header"><div><p class="eyebrow">Kawiarnia zamknięta na dziś</p><h2 id="round-result-title">Podsumowanie rundy</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Zamknij"><span data-icon="close"></span></button></div>
+    <div class="dialog-body">
+      <div id="round-winner" class="winner-card"><span class="avatar avatar-bunny">B</span><div><small>Gwiazda rundy</small><strong>Jeszcze nie wybrano</strong></div><b>+0 <span data-icon="heart"></span></b></div>
+      <div id="round-breakdown" class="score-breakdown"></div>
+      <div id="round-ranking" class="ranking-list"></div>
+    </div>
+    <div class="dialog-footer"><button class="secondary-button" type="button" data-action="home">Zakończ</button><button class="primary-button" type="button" data-action="next-round">Następna runda <span data-icon="arrow-right"></span></button></div>
+  </dialog>
+
+  <dialog id="final-dialog" class="game-dialog result-dialog final-dialog" aria-labelledby="final-title">
+    <div class="confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="dialog-header centered-heading"><div><p class="eyebrow">Koniec gry</p><h2 id="final-title">Najprzytulniejsza kawiarnia!</h2><p id="final-subtitle">Wszyscy goście wyszli z uśmiechem.</p></div></div>
+    <div class="dialog-body"><div id="final-podium" class="podium"></div><div id="final-ranking" class="ranking-list"></div></div>
+    <div class="dialog-footer"><button class="secondary-button" type="button" data-action="home"><span data-icon="home"></span> Menu</button><button class="primary-button" type="button" data-action="rematch"><span data-icon="rotate"></span> Rewanż</button></div>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

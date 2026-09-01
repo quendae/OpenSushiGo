@@ -1,0 +1,479 @@
+import {
+  createGame,
+  dispatchAction,
+  getPlayerView,
+  scoreRound,
+} from './core.js';
+import { chooseBotAction } from './bots.js';
+import { MultiplayerSession } from './multiplayer.js';
+import {
+  CARD_PRESENTATION,
+  createCard,
+  createOpponent,
+  escapeHTML,
+  icon,
+  setScreen,
+  openDialog,
+  closeDialog,
+  showToast,
+} from './ui.js';
+
+const BOT_NAMES = ['Mokka', 'Kruszonka', 'Pestka', 'Pianka'];
+const SIGNALING_KEY = 'puchate-cafe-signaling-url';
+
+const app = {
+  mode: null,
+  state: null,
+  view: null,
+  localSeat: 0,
+  selectedIds: [],
+  useExtraPaws: false,
+  multiplayer: null,
+  lobby: null,
+  config: null,
+  lastRound: 1,
+  shownFinal: false,
+  busy: false,
+};
+
+const byId = (id) => document.getElementById(id);
+const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+function randomSeed() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
+
+function playerConfig(name, count, difficulty) {
+  return Array.from({ length: count }, (_, seat) => seat === 0
+    ? { id: 'local', name, kind: 'human' }
+    : { id: `bot-${seat}`, name: BOT_NAMES[seat - 1], kind: 'bot', difficulty });
+}
+
+function normalizeDifficulty(value) {
+  return value === 'easy' ? 'easy' : 'normal';
+}
+
+function showError(error) {
+  console.error(error);
+  const messages = {
+    INVALID_SIGNALING_URL: 'Podaj prawidłowy adres serwera pokoju.',
+    INVALID_ROOM: 'Kod pokoju powinien mieć sześć znaków.',
+    ROOM_FULL: 'Przy tym stoliku nie ma już wolnych miejsc.',
+    HOST_UNAVAILABLE: 'Nie udało się połączyć z gospodarzem.',
+    SIGNALING_TIMEOUT: 'Serwer pokoju nie odpowiedział. Sprawdź adres i spróbuj ponownie.',
+  };
+  showToast(messages[error?.code] ?? error?.message ?? 'Coś poszło nie tak. Spróbuj ponownie.', { type: 'error', duration: 5000 });
+}
+
+function syncPlayerCountControls(source) {
+  const value = String(source.value);
+  const select = byId('player-count');
+  if (select && select !== source) select.value = value;
+  document.querySelectorAll('input[name="playerCount"]').forEach((radio) => { radio.checked = radio.value === value; });
+}
+
+function startLocalGame(config = app.config) {
+  app.multiplayer?.close();
+  app.multiplayer = null;
+  app.mode = 'local';
+  app.config = config;
+  app.state = createGame({ ...config, seed: randomSeed(), players: playerConfig(config.name, config.count, config.difficulty) });
+  app.localSeat = 0;
+  app.lastRound = 1;
+  app.shownFinal = false;
+  app.selectedIds = [];
+  app.useExtraPaws = false;
+  setScreen('game');
+  updateFromState();
+}
+
+function updateFromState() {
+  if (!app.state) return;
+  app.view = getPlayerView(app.state, app.localSeat);
+  renderGame(app.view);
+  handleMilestone(app.view);
+}
+
+function updateFromView(view) {
+  app.view = view;
+  renderGame(view);
+  handleMilestone(view);
+}
+
+function handleMilestone(view) {
+  if (view.phase === 'game_over') {
+    if (!app.shownFinal) {
+      app.shownFinal = true;
+      fillFinalDialog(view);
+      window.setTimeout(() => openDialog('final-dialog'), 350);
+    }
+    return;
+  }
+  if (view.round > app.lastRound) {
+    const completedRound = view.round - 1;
+    app.lastRound = view.round;
+    fillRoundDialog(view, completedRound);
+    window.setTimeout(() => openDialog('round-dialog'), 300);
+  }
+}
+
+function renderGame(view) {
+  if (!view?.me) return;
+  const ownLocked = Boolean(view.selections?.find((selection) => selection.seat === view.seat)?.locked);
+  const handSignature = `${view.round}:${view.turn}:${view.me.hand?.map((card) => card.id).join(',')}`;
+  if (app.handSignature !== handSignature || ownLocked) {
+    app.handSignature = handSignature;
+    app.selectedIds = [];
+    app.useExtraPaws = false;
+  }
+
+  byId('round-label').textContent = `Runda ${view.round} z ${view.totalRounds}`;
+  document.querySelectorAll('.round-progress i').forEach((dot, index) => dot.classList.toggle('is-filled', index < view.round));
+  byId('score-label').textContent = String(view.me.score ?? 0);
+  byId('hand-count').textContent = `${view.me.handCount} ${view.me.handCount === 1 ? 'karta' : view.me.handCount < 5 ? 'karty' : 'kart'}`;
+
+  const status = byId('turn-status');
+  status.innerHTML = ownLocked
+    ? `${icon('check')} Wybór zapisany — czekamy`
+    : `${icon('sparkle')} Wybierz kartę`;
+  status.classList.toggle('is-locked', ownLocked);
+
+  const opponents = byId('opponents');
+  opponents.replaceChildren(...view.players
+    .filter((player) => player.seat !== view.seat)
+    .map((player) => {
+      const locked = Boolean(view.selections?.find((selection) => selection.seat === player.seat)?.locked);
+      return createOpponent({
+        ...player,
+        isBot: player.kind === 'bot',
+        avatar: ['bunny', 'cat', 'dog', 'fox'][player.seat % 4],
+        status: locked ? 'ready' : 'choosing',
+      });
+    }));
+
+  const tableau = byId('tableau');
+  const cards = [...(view.me.playedThisRound ?? []), ...(view.me.adoptionPets ?? [])];
+  if (cards.length) {
+    tableau.replaceChildren(...cards.map((card) => createCard(card, { selectable: false, compact: true })));
+  } else {
+    tableau.innerHTML = '<p class="empty-tableau">Zagrane karty pojawią się tutaj</p>';
+  }
+  const liveRound = scoreRound(view.me, view.players).total;
+  byId('tableau-score').textContent = `${liveRound} pkt w rundzie`;
+
+  const hand = byId('hand');
+  const disabled = ownLocked || view.phase !== 'draft';
+  hand.replaceChildren(...(view.me.hand ?? []).map((card) => createCard(card, {
+    selected: app.selectedIds.includes(card.id),
+    disabled,
+  })));
+
+  const canUsePaws = (view.legalActions ?? []).some((action) => action.useExtraPaws);
+  renderPawsControl(canUsePaws, disabled);
+  const required = app.useExtraPaws ? 2 : 1;
+  const confirm = byId('confirm-card');
+  confirm.disabled = disabled || app.selectedIds.length !== required;
+  confirm.innerHTML = `${icon('check')} ${app.useExtraPaws ? 'Zagraj dwie karty' : 'Zagraj kartę'}`;
+  byId('hand-title').textContent = app.useExtraPaws ? 'Wybierz dwie karty po kolei' : 'Wybierz jedną kartę';
+  byId('selection-hint').innerHTML = app.useExtraPaws
+    ? `${icon('info')} Kolejność ma znaczenie: pierwsza Polewa może wzmocnić drugiego Gościa.`
+    : `${icon('info')} Wybór zostanie odkryty dopiero, gdy wszyscy będą gotowi.`;
+}
+
+function renderPawsControl(available, disabled) {
+  let button = byId('paws-toggle');
+  if (!available) {
+    button?.remove();
+    app.useExtraPaws = false;
+    return;
+  }
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'paws-toggle';
+    button.type = 'button';
+    button.className = 'soft-button paws-toggle';
+    button.dataset.action = 'toggle-paws';
+    document.querySelector('.hand-actions')?.prepend(button);
+  }
+  button.disabled = disabled;
+  button.classList.toggle('is-active', app.useExtraPaws);
+  button.setAttribute('aria-pressed', String(app.useExtraPaws));
+  button.innerHTML = `${icon('paws')} ${app.useExtraPaws ? 'Łapki aktywne' : 'Użyj dodatkowych łapek'}`;
+}
+
+function toggleCard(cardId) {
+  if (!cardId || app.view?.phase !== 'draft') return;
+  const ownLocked = app.view.selections?.find((selection) => selection.seat === app.view.seat)?.locked;
+  if (ownLocked) return;
+  const position = app.selectedIds.indexOf(cardId);
+  if (position >= 0) app.selectedIds.splice(position, 1);
+  else {
+    const limit = app.useExtraPaws ? 2 : 1;
+    if (app.selectedIds.length >= limit) app.selectedIds.shift();
+    app.selectedIds.push(cardId);
+  }
+  renderGame(app.view);
+}
+
+function selectedAction() {
+  const actions = app.view?.legalActions ?? [];
+  return actions.find((action) => {
+    if (Boolean(action.useExtraPaws) !== app.useExtraPaws) return false;
+    return action.cardIds.length === app.selectedIds.length && action.cardIds.every((id, index) => id === app.selectedIds[index]);
+  });
+}
+
+async function commitSelection() {
+  if (app.busy) return;
+  const action = selectedAction();
+  if (!action) {
+    showToast('Wybierz poprawną kartę lub kolejność kart.', { type: 'error' });
+    return;
+  }
+  app.busy = true;
+  try {
+    if (app.mode === 'local') {
+      app.state = dispatchAction(app.state, 0, action);
+      updateFromState();
+      await sleep(280);
+      await runHostBots();
+    } else if (app.multiplayer) {
+      app.multiplayer.sendAction('play_cards', action);
+    }
+  } catch (error) {
+    showError(error);
+  } finally {
+    app.busy = false;
+  }
+}
+
+async function runHostBots() {
+  if (!app.state || app.state.phase !== 'draft') return;
+  const bots = app.state.players.filter((player) => player.kind === 'bot');
+  for (const bot of bots) {
+    if (app.state.phase !== 'draft' || app.state.pendingSelections[String(bot.seat)]) continue;
+    const view = getPlayerView(app.state, bot.seat);
+    const action = chooseBotAction(view, bot.difficulty);
+    if (action) app.state = dispatchAction(app.state, bot.seat, action);
+  }
+  updateFromState();
+}
+
+function fillRoundDialog(view, roundNumber) {
+  const scored = view.players.map((player) => ({ player, result: player.roundScores?.[roundNumber - 1] ?? { total: 0 } }));
+  const winner = [...scored].sort((a, b) => b.result.total - a.result.total)[0];
+  byId('round-result-title').textContent = `Podsumowanie rundy ${roundNumber}`;
+  byId('round-winner').innerHTML = `<span class="avatar avatar-bunny">${escapeHTML(winner.player.name.charAt(0))}</span><div><small>Gwiazda rundy</small><strong>${escapeHTML(winner.player.name)}</strong></div><b>+${winner.result.total} ${icon('heart')}</b>`;
+  const own = scored.find((entry) => entry.player.seat === view.seat)?.result ?? {};
+  const labels = [['cookies', 'Ciasteczka'], ['afternoonSets', 'Podwieczorki'], ['sweetBuns', 'Bułeczki'], ['guests', 'Goście'], ['creamTopping', 'Polewa'], ['drinks', 'Napoje']];
+  byId('round-breakdown').innerHTML = labels.map(([key, label]) => `<div><span>${escapeHTML(label)}</span><strong>+${Number(own[key] ?? 0)}</strong></div>`).join('');
+  byId('round-ranking').innerHTML = [...scored].sort((a, b) => b.player.score - a.player.score).map((entry, index) => `<div><span>${index + 1}</span><strong>${escapeHTML(entry.player.name)}</strong><b>${entry.player.score} ${icon('heart')}</b></div>`).join('');
+}
+
+function fillFinalDialog(view) {
+  const result = view.result;
+  if (!result) return;
+  const ranking = [...result.players].sort((a, b) => b.total - a.total);
+  const winners = ranking.filter((entry) => entry.total === result.winningScore);
+  byId('final-title').textContent = winners.length > 1 ? 'Wspólne zwycięstwo!' : `${winners[0].name} wygrywa!`;
+  byId('final-subtitle').textContent = `Najlepsza kawiarnia zdobyła ${result.winningScore} serduszek.`;
+  byId('final-podium').innerHTML = ranking.slice(0, 3).map((entry, index) => `<article class="podium-place podium-${index + 1}"><span>${index + 1}</span><strong>${escapeHTML(entry.name)}</strong><b>${entry.total} ${icon('heart')}</b></article>`).join('');
+  byId('final-ranking').innerHTML = ranking.map((entry, index) => `<div><span>${index + 1}</span><strong>${escapeHTML(entry.name)}</strong><small>Adopcje: ${entry.adoptionPets} (${entry.adoptionPoints >= 0 ? '+' : ''}${entry.adoptionPoints})</small><b>${entry.total} ${icon('heart')}</b></div>`).join('');
+}
+
+function signalingUrl() {
+  const input = byId('signaling-url');
+  const value = input?.value?.trim() || localStorage.getItem(SIGNALING_KEY) || '';
+  if (value) localStorage.setItem(SIGNALING_KEY, value);
+  return value;
+}
+
+function createOnlineSession(role) {
+  app.multiplayer?.close();
+  app.multiplayer = new MultiplayerSession({
+    signalingUrl: signalingUrl(),
+    filterState: (state, seat) => getPlayerView(state, seat),
+    onLobby: (lobby) => {
+      app.lobby = lobby;
+      renderLobby();
+    },
+    onStart: () => {
+      if (role === 'guest') {
+        app.mode = 'online-guest';
+        setScreen('game');
+        byId('turn-status').textContent = 'Czekamy na stan gospodarza…';
+      }
+    },
+    onAction: async (request) => {
+      if (app.mode !== 'online-host' || request.action !== 'play_cards') throw new Error('Nieobsługiwana akcja.');
+      app.state = dispatchAction(app.state, request.seat, request.payload);
+      await runHostBots();
+      app.multiplayer.broadcastViews(app.state);
+      updateFromState();
+      return { ok: true };
+    },
+    onState: (stateOrView, meta) => {
+      if (meta.authoritative) return;
+      updateFromView(stateOrView);
+    },
+    onError: showError,
+    onPeerChange: (event) => {
+      if (event.status === 'disconnected') showToast('Gracz utracił połączenie. Gra została zatrzymana.', { type: 'error', duration: 6000 });
+    },
+  });
+  return app.multiplayer;
+}
+
+function ensureSignaling() {
+  if (signalingUrl()) return true;
+  showToast('Najpierw wpisz adres wdrożonego serwera pokoju.', { type: 'error', duration: 5000 });
+  byId('signaling-url')?.focus();
+  return false;
+}
+
+async function hostRoom(form) {
+  if (!ensureSignaling()) return;
+  const session = createOnlineSession('host');
+  const name = byId('host-name').value.trim();
+  const maxSeats = Number(byId('host-player-count').value);
+  app.mode = 'online-host';
+  app.localSeat = 0;
+  setScreen('lobby');
+  try {
+    await session.createRoom({ name, maxSeats });
+  } catch (error) {
+    showError(error);
+    setScreen('multiplayer');
+  }
+}
+
+async function joinRoom() {
+  if (!ensureSignaling()) return;
+  const session = createOnlineSession('guest');
+  app.mode = 'online-guest';
+  setScreen('lobby');
+  try {
+    await session.joinRoom(byId('room-code').value, { name: byId('join-name').value });
+  } catch (error) {
+    showError(error);
+    setScreen('multiplayer');
+  }
+}
+
+function renderLobby() {
+  const lobby = app.lobby;
+  if (!lobby) return;
+  byId('lobby-code').textContent = app.multiplayer.roomCode || 'ŁĄCZENIE';
+  byId('lobby-count').textContent = `${lobby.seats.filter((seat) => seat.kind !== 'empty').length} / ${lobby.maxSeats}`;
+  byId('lobby-seats').innerHTML = lobby.seats.map((seat) => {
+    if (seat.kind === 'empty') return `<article class="seat-card is-waiting"><span class="avatar avatar-empty">${icon('plus')}</span><div><strong>Wolne miejsce</strong><small>Czekamy na gracza…</small></div><span class="waiting-dots"><i></i><i></i><i></i></span></article>`;
+    const detail = seat.kind === 'bot' ? `Bot · ${seat.difficulty === 'easy' ? 'łagodny' : 'bystry'}` : seat.seat === 0 ? 'Gospodarz · gotowy' : 'Gość · gotowy';
+    return `<article class="seat-card is-ready"><span class="avatar avatar-${seat.kind === 'bot' ? 'cat' : 'bunny'}">${escapeHTML(seat.name.charAt(0))}</span><div><strong>${escapeHTML(seat.name)}</strong><small>${escapeHTML(detail)}</small></div><span class="status-pill">Gotowy</span></article>`;
+  }).join('');
+  const ready = lobby.seats.every((seat) => seat.kind !== 'empty' && (seat.kind === 'bot' || seat.connected));
+  const start = byId('lobby-start');
+  start.hidden = app.mode !== 'online-host';
+  start.disabled = !ready;
+  byId('lobby-status').innerHTML = ready ? `${icon('check')} Wszyscy są gotowi` : '<span class="spinner" aria-hidden="true"></span> Czekamy na pozostałych gości';
+  ensureFillBotsButton();
+}
+
+function ensureFillBotsButton() {
+  let button = byId('fill-bots');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'fill-bots';
+    button.type = 'button';
+    button.className = 'soft-button';
+    button.dataset.action = 'fill-bots';
+    button.innerHTML = `${icon('bot')} Wypełnij botami`;
+    document.querySelector('.lobby-footer')?.prepend(button);
+  }
+  button.hidden = app.mode !== 'online-host' || !app.lobby?.seats.some((seat) => seat.kind === 'empty');
+}
+
+function fillLobbyBots() {
+  if (app.mode !== 'online-host' || !app.lobby) return;
+  const bots = app.lobby.seats.filter((seat) => seat.kind === 'bot').map((seat) => ({ seat: seat.seat, name: seat.name, difficulty: seat.difficulty }));
+  app.lobby.seats.filter((seat) => seat.kind === 'empty').forEach((seat) => bots.push({ seat: seat.seat, name: BOT_NAMES[(seat.seat - 1) % BOT_NAMES.length], difficulty: 'normal' }));
+  app.multiplayer.configureLobby({ maxSeats: app.lobby.maxSeats, bots });
+}
+
+function startOnlineGame() {
+  if (app.mode !== 'online-host' || !app.lobby) return;
+  const players = app.lobby.seats.map((seat) => ({
+    id: `seat-${seat.seat}`,
+    name: seat.name,
+    kind: seat.kind === 'bot' ? 'bot' : 'human',
+    difficulty: normalizeDifficulty(seat.difficulty),
+  }));
+  app.state = createGame({ gameId: `room-${app.multiplayer.roomCode}`, seed: randomSeed(), players });
+  app.localSeat = 0;
+  app.lastRound = 1;
+  app.shownFinal = false;
+  app.multiplayer.startGame({ gameId: app.state.gameId });
+  setScreen('game');
+  app.multiplayer.broadcastViews(app.state);
+  updateFromState();
+}
+
+function goHome() {
+  app.multiplayer?.close();
+  app.multiplayer = null;
+  app.state = null;
+  app.view = null;
+  app.mode = null;
+  app.selectedIds = [];
+  document.querySelectorAll('dialog[open]').forEach((dialog) => closeDialog(dialog));
+  setScreen('home');
+}
+
+document.addEventListener('click', async (event) => {
+  const target = event.target.closest('[data-action]');
+  if (!target) return;
+  const action = target.dataset.action;
+  if (action === 'solo') setScreen('setup');
+  else if (action === 'multiplayer') {
+    setScreen('multiplayer');
+    const input = byId('signaling-url');
+    if (input && !input.value) input.value = localStorage.getItem(SIGNALING_KEY) || '';
+  } else if (action === 'back-home' || action === 'home' || action === 'leave-lobby') goHome();
+  else if (action === 'rules') openDialog('rules-dialog');
+  else if (action === 'play-card') toggleCard(target.dataset.cardId);
+  else if (action === 'toggle-paws') {
+    app.useExtraPaws = !app.useExtraPaws;
+    app.selectedIds = app.selectedIds.slice(0, app.useExtraPaws ? 2 : 1);
+    renderGame(app.view);
+  } else if (action === 'confirm-card') await commitSelection();
+  else if (action === 'next-round') closeDialog('round-dialog');
+  else if (action === 'rematch') {
+    closeDialog('final-dialog');
+    if (app.mode === 'local') startLocalGame(); else goHome();
+  } else if (action === 'copy-code') {
+    await navigator.clipboard?.writeText(app.multiplayer?.roomCode ?? '');
+    showToast('Kod pokoju skopiowany.', { type: 'success' });
+  } else if (action === 'fill-bots') fillLobbyBots();
+  else if (action === 'start-multiplayer') startOnlineGame();
+  else if (action === 'toggle-sound') {
+    const pressed = target.getAttribute('aria-pressed') !== 'false';
+    target.setAttribute('aria-pressed', String(!pressed));
+    showToast(pressed ? 'Dźwięki wyłączone.' : 'Dźwięki włączone.');
+  }
+});
+
+byId('setup-form')?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const checked = document.querySelector('input[name="playerCount"]:checked');
+  startLocalGame({
+    name: byId('player-name').value.trim() || 'Barista',
+    count: Number(checked?.value ?? byId('player-count').value),
+    difficulty: normalizeDifficulty(byId('bot-difficulty').value),
+  });
+});
+
+document.querySelectorAll('input[name="playerCount"]').forEach((radio) => radio.addEventListener('change', () => syncPlayerCountControls(radio)));
+byId('player-count')?.addEventListener('change', (event) => syncPlayerCountControls(event.target));
+byId('host-form')?.addEventListener('submit', (event) => { event.preventDefault(); void hostRoom(event.currentTarget); });
+byId('join-form')?.addEventListener('submit', (event) => { event.preventDefault(); void joinRoom(); });
+
+setScreen('home');
