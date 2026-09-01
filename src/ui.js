@@ -1,18 +1,18 @@
 import { getCardArt } from './art.js';
 
 export const CARD_PRESENTATION = Object.freeze({
-  cookie_set: { name: 'Zestaw ciasteczek', short: 'Para = 5', category: 'set', icon: 'cookie', description: 'Każda pełna para daje 5 serduszek.' },
-  afternoon_set: { name: 'Popołudniowy zestaw', short: 'Trójka = 10', category: 'set', icon: 'tray', description: 'Każda pełna trójka daje 10 serduszek.' },
-  sweet_bun: { name: 'Słodka bułeczka', short: '1 · 3 · 6 · 10 · 15', category: 'bun', icon: 'bun', description: 'Kolejne bułeczki są warte coraz więcej.' },
-  drink_1: { name: 'Pojedyncza filiżanka', short: '1 popularność', category: 'drink', icon: 'cup', pips: 1, description: 'Jedna ikona w wyścigu popularności.' },
-  drink_2: { name: 'Dwa kubki kakao', short: '2 popularność', category: 'drink', icon: 'cup', pips: 2, description: 'Dwie ikony w wyścigu popularności.' },
-  drink_3: { name: 'Taca napojów', short: '3 popularność', category: 'drink', icon: 'cup', pips: 3, description: 'Trzy ikony w wyścigu popularności.' },
-  bunny_guest: { name: 'Króliczek przy stoliku', short: '1 serduszko', category: 'guest', icon: 'bunny', points: 1, description: 'Sympatyczny gość wart 1 serduszko.' },
-  cat_guest: { name: 'Kotek przy stoliku', short: '2 serduszka', category: 'guest', icon: 'cat', points: 2, description: 'Rozmruczany gość wart 2 serduszka.' },
-  dog_guest: { name: 'Piesek przy stoliku', short: '3 serduszka', category: 'guest', icon: 'dog', points: 3, description: 'Radosny gość wart 3 serduszka.' },
-  adoption_pet: { name: 'Zwierzak do adopcji', short: 'Premia na koniec', category: 'adoption', icon: 'paw', description: 'Najwięcej adopcji daje premię po trzeciej rundzie.' },
-  cream_topping: { name: 'Kremowa polewa', short: 'Następny gość ×3', category: 'special', icon: 'cream', description: 'Potraja wartość następnego zagranego gościa.' },
-  extra_paws: { name: 'Dodatkowa para łapek', short: 'Wybierz 2 karty', category: 'special', icon: 'paws', description: 'Pozwala w następnej turze wybrać dwie karty.' }
+  cookie_set: { name: 'Ciasteczka', badge: '2', kicker: 'ZBIERZ PARĘ', rule: '×2 = 5 PKT', category: 'set', description: 'Każde 2 ciasteczka dają 5 punktów.' },
+  afternoon_set: { name: 'Podwieczorek', badge: '3', kicker: 'ZBIERZ TRÓJKĘ', rule: '×3 = 10 PKT', category: 'set', description: 'Każde 3 podwieczorki dają 10 punktów.' },
+  sweet_bun: { name: 'Bułeczki', badge: '1…5', category: 'bun', ladder: [['1', '2', '3', '4', '5+'], ['1', '3', '6', '10', '15']], description: 'Za 1, 2, 3, 4 i 5 lub więcej bułeczek dostajesz kolejno 1, 3, 6, 10 i 15 punktów.' },
+  drink_1: { name: 'Kakao', badge: '1', kicker: '1 KUBEK', rule: '1. = 6 · 2. = 3 PKT', category: 'drink', pips: 1, description: 'Liczy się jako 1 kubek. Najwięcej kubków daje 6 punktów, drugie miejsce 3.' },
+  drink_2: { name: 'Kakao', badge: '2', kicker: '2 KUBKI', rule: '1. = 6 · 2. = 3 PKT', category: 'drink', pips: 2, description: 'Liczy się jako 2 kubki. Najwięcej kubków daje 6 punktów, drugie miejsce 3.' },
+  drink_3: { name: 'Kakao', badge: '3', kicker: '3 KUBKI', rule: '1. = 6 · 2. = 3 PKT', category: 'drink', pips: 3, description: 'Liczy się jako 3 kubki. Najwięcej kubków daje 6 punktów, drugie miejsce 3.' },
+  bunny_guest: { name: 'Króliczek', badge: '1', kicker: 'GOŚĆ', rule: '1 PKT', category: 'guest', points: 1, description: 'Króliczek daje 1 punkt.' },
+  cat_guest: { name: 'Kotek', badge: '2', kicker: 'GOŚĆ', rule: '2 PKT', category: 'guest', points: 2, description: 'Kotek daje 2 punkty.' },
+  dog_guest: { name: 'Piesek', badge: '3', kicker: 'GOŚĆ', rule: '3 PKT', category: 'guest', points: 3, description: 'Piesek daje 3 punkty.' },
+  adoption_pet: { name: 'Adopcja', badge: 'KONIEC', kicker: 'NAJWIĘCEJ +6', rule: 'NAJMNIEJ −6', category: 'adoption', description: 'Na końcu gry najwięcej adopcji daje 6 punktów, a najmniej odbiera 6. W grze dwuosobowej nie ma punktów ujemnych.' },
+  cream_topping: { name: 'Kremowa polewa', badge: '×3', kicker: 'NASTĘPNY GOŚĆ', rule: '×3 PUNKTY', category: 'special', description: 'Potraja wartość następnego zagranego gościa.' },
+  extra_paws: { name: 'Dodatkowe łapki', badge: '×2', kicker: 'W NASTĘPNEJ TURZE', rule: 'WYBIERZ 2 KARTY', category: 'special', description: 'W następnej turze wybierasz 2 karty, a tę kartę oddajesz z przekazywaną ręką.' }
 });
 
 export function escapeHTML(value = '') {
@@ -60,6 +60,14 @@ export function icon(name, className = '') {
 
 function resolveCardType(card) { return typeof card === 'string' ? card : card?.type; }
 
+function renderCardRule(meta) {
+  if (meta.ladder) {
+    const [counts, points] = meta.ladder;
+    return `<span class="card-ladder" aria-hidden="true"><span>${counts.map(value => `<b>${escapeHTML(value)}</b>`).join('')}</span><span>${points.map(value => `<strong>${escapeHTML(value)}</strong>`).join('')}</span></span>`;
+  }
+  return `<span class="card-rule-kicker">${escapeHTML(meta.kicker)}</span><strong class="card-rule-main">${escapeHTML(meta.rule)}</strong>`;
+}
+
 export function createCard(card, options = {}) {
   const type = resolveCardType(card);
   const meta = CARD_PRESENTATION[type] || { name: 'Tajemnicza karta', short: 'Nieznany efekt', category: 'unknown', icon: 'sparkle', description: 'Ta karta skrywa niespodziankę.' };
@@ -75,10 +83,7 @@ export function createCard(card, options = {}) {
     element.setAttribute('aria-pressed', String(Boolean(options.selected)));
     element.disabled = Boolean(options.disabled);
   }
-  const values = meta.pips
-    ? `<span class="card-pips" aria-label="${meta.pips} ikony popularności">${Array.from({ length: meta.pips }, () => icon('cup')).join('')}</span>`
-    : meta.points ? `<span class="card-points">${meta.points}${icon('heart')}</span>` : icon(meta.icon, 'card-symbol');
-  element.innerHTML = `<span class="card-top"><span class="card-type-icon">${icon(meta.icon)}</span><span class="card-name">${escapeHTML(meta.name)}</span></span><span class="card-picture">${getCardArt(type)}</span><span class="card-bottom"><span>${escapeHTML(meta.short)}</span>${values}</span><span class="card-check">${icon('check')}</span>`;
+  element.innerHTML = `<span class="card-picture">${getCardArt(type)}<span class="card-value-badge" aria-hidden="true">${escapeHTML(meta.badge)}</span></span><span class="card-info"><span class="card-name">${escapeHTML(meta.name)}</span><span class="card-rule">${renderCardRule(meta)}</span></span><span class="card-check">${icon('check')}</span>`;
   element.setAttribute('aria-label', `${meta.name}. ${meta.description}${options.selected ? '. Wybrana' : ''}`);
   element.title = meta.description;
   return element;

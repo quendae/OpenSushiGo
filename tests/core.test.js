@@ -117,6 +117,18 @@ test('adoption pets score only at game end, including ties and two-player except
   assert.deepEqual(result.winners, [0]);
 });
 
+test('adoptions break a final score tie, matching the dessert tie-break rule', () => {
+  const tied = [player([], 4, 10), player([], 2, 16, 1), player([], 1, 22, 2)];
+  const result = scoreFinalGame(tied);
+  assert.deepEqual(result.players.map((entry) => entry.total), [16, 16, 16]);
+  assert.deepEqual(result.winners, [0]);
+
+  const sameScore = [player([], 3, 10), player([], 3, 10, 1), player([], 1, 19, 2)];
+  const tieBroken = scoreFinalGame(sameScore);
+  assert.deepEqual(tieBroken.players.map((entry) => entry.total), [13, 13, 13]);
+  assert.deepEqual(tieBroken.winners, [0, 1]);
+});
+
 test('round breakdown adds each category without counting adoption or Extra Paws', () => {
   const tableau = [
     ...cards('cookie_set', 2),

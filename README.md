@@ -11,7 +11,7 @@ Oryginalna, przeglądarkowa gra karciana o prowadzeniu kawiarni dla zwierzaków.
 - prywatny multiplayer host-authoritative przez WebRTC DataChannel,
 - osobny Cloudflare Worker do sygnalizacji pokoi,
 - responsywny stół, obsługa dotyku, ograniczenie animacji i czytelność bez polegania wyłącznie na kolorze,
-- oryginalne ilustracje SVG generowane lokalnie — bez cudzych grafik.
+- 12 oryginalnych ilustracji kart w miękkim, trójwymiarowym stylu — bez cudzych grafik.
 
 ## Uruchomienie lokalne
 
@@ -49,7 +49,8 @@ src/core.js         czysty, deterministyczny silnik zasad
 src/bots.js         decyzje botów przez ten sam interfejs akcji
 src/app.js          kontroler ekranów i sesji
 src/ui.js           bezpieczne renderowanie komponentów DOM
-src/art.js          oryginalne ilustracje SVG kart
+src/art.js          mapa oryginalnych ilustracji rastrowych kart
+assets/cards/       zoptymalizowane ilustracje WebP
 src/multiplayer.js  WebRTC, protokół i autorytet hosta
 worker/             signaling WebSocket / Durable Object
 tests/              testy reguł, prywatności i protokołu
@@ -60,6 +61,19 @@ Najważniejsza zasada sieciowa: **jedna autorytatywna symulacja, wiele prywatnyc
 ## Zasady w skrócie
 
 W każdej turze wszyscy wybierają kartę zakrytą. Po zatwierdzeniu przez cały stół karty są odkrywane jednocześnie, a pozostałe ręce przechodzą w lewo. Po rundzie punktowane są pary ciasteczek, trójki zestawów, kolekcje bułeczek, goście i popularność napojów. Zwierzaki do adopcji punktują dopiero po trzeciej rundzie.
+
+### Mechaniczne odpowiedniki kart
+
+| Puchate Café | Liczba | Punktacja / działanie |
+|---|---:|---|
+| Ciasteczka | 14 | każde 2 = 5 pkt |
+| Podwieczorek | 14 | każde 3 = 10 pkt |
+| Bułeczki | 14 | 1/2/3/4/5+ kart = 1/3/6/10/15 pkt |
+| Kakao ×1 / ×2 / ×3 | 6 / 12 / 8 | najwięcej kubków = 6 pkt, drugie miejsce = 3 pkt |
+| Króliczek / Kotek / Piesek | 5 / 10 / 5 | odpowiednio 1 / 2 / 3 pkt |
+| Adopcja | 10 | na końcu: najwięcej +6, najmniej −6; rozstrzyga remis |
+| Kremowa polewa | 6 | następny gość ma wartość ×3 |
+| Dodatkowe łapki | 4 | w późniejszej turze wybierz 2 karty |
 
 ## Licencja i grafiki
 

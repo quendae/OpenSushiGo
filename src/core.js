@@ -404,10 +404,12 @@ export function scoreFinalGame(stateOrPlayers) {
     adoptionPets: player.adoptionPets?.length ?? 0,
   }));
   const winningScore = Math.max(...scoredPlayers.map((player) => player.total));
+  const scoreLeaders = scoredPlayers.filter((player) => player.total === winningScore);
+  const mostAdoptionsAmongLeaders = Math.max(...scoreLeaders.map((player) => player.adoptionPets));
   return {
     players: scoredPlayers,
     winningScore,
-    winners: scoredPlayers.filter((player) => player.total === winningScore).map((player) => player.seat),
+    winners: scoreLeaders.filter((player) => player.adoptionPets === mostAdoptionsAmongLeaders).map((player) => player.seat),
   };
 }
 
