@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import {
   CARD_TYPES,
   buildDeck,
+  buildPartyMenuDeck,
   createGame,
   deserialize,
   dispatchAction,
+  dispatchSpecialAction,
   getLegalActions,
   getPlayerView,
   replay,
@@ -15,12 +17,25 @@ import {
   scoreCookieSets,
   scoreCreamTopping,
   scoreDrinkMajority,
+  scorePartyDrinkMajority,
   scoreFinalGame,
   scoreGuests,
   scoreRound,
   scoreSweetBuns,
   serialize,
 } from '../src/core.js';
+import {
+  PARTY_HAND_SIZE,
+  scoreCaramel,
+  scoreCheesecake,
+  scoreConeRace,
+  scoreFlipped,
+  scorePartyDesserts,
+  scoreSandwiches,
+  scoreSharedSprinkles,
+  scoreSoup,
+  scoreTea,
+} from '../src/party.js';
 import { chooseBotAction, createBot, easyBot, normalBot } from '../src/bots.js';
 
 const deck = buildDeck();
@@ -258,4 +273,88 @@ test('easy and normal bots use the view and always return a listed legal action'
       assert.ok(view.legalActions.some((legal) => JSON.stringify(legal) === JSON.stringify(action)));
     }
   }
+});
+
+test('Party menu contains the official 1 + 3 + 2 + 1 structure and 69 cards', () => {
+  const partyDeck = buildPartyMenuDeck('clever');
+  assert.equal(partyDeck.length, 69);
+  assert.equal(partyDeck.filter((card) => ['bunny_guest', 'cat_guest', 'dog_guest'].includes(card.type)).length, 12);
+  assert.equal(partyDeck.filter((card) => card.type.startsWith('tray_race_')).length, 12);
+  assert.equal(partyDeck.filter((card) => card.type.startsWith('sandwich_')).length, 8);
+  assert.equal(partyDeck.filter((card) => card.type === 'afternoon_set').length, 8);
+  assert.equal(partyDeck.filter((card) => card.type === 'shared_sprinkles').length, 8);
+  assert.equal(partyDeck.filter((card) => ['tea_pot', 'special_order'].includes(card.type)).length, 6);
+  assert.equal(partyDeck.filter((card) => card.type === 'fruit_basket').length, 15);
+});
+
+test('Party hand sizes support two through eight players', () => {
+  for (const [count, size] of Object.entries(PARTY_HAND_SIZE)) {
+    const menu = Number(count) > 6 ? 'cozy' : 'sampler';
+    const state = createGame({ variant: 'party', partyMenu: menu, playerCount: Number(count), seed: `party-${count}` });
+    assert.deepEqual(state.players.map((entry) => entry.hand.length), Array(Number(count)).fill(size));
+  }
+  assert.throws(() => createGame({ variant: 'party', playerCount: 9 }), /2–8/);
+  assert.throws(() => createGame({ variant: 'party', partyMenu: 'lively', playerCount: 2 }), /3–8/);
+  assert.throws(() => createGame({ variant: 'party', partyMenu: 'sampler', playerCount: 7 }), /2–6/);
+});
+
+test('Party appetizer and special scoring follows the verified tracks', () => {
+  const party = buildPartyMenuDeck('clever').map((card) => ({ ...card }));
+  const fromParty = (type, count) => party.filter((card) => card.type === type).slice(0, count);
+  assert.deepEqual([0, 1, 2, 3].map((count) => scoreCaramel(Array.from({ length: count }, (_, index) => ({ type: 'caramel_twist', id: `c${index}` })))), [0, -3, 7, 7]);
+  assert.deepEqual([0, 1, 2, 3].map((count) => scoreCheesecake(Array.from({ length: count }, (_, index) => ({ type: 'cheesecake', id: `q${index}` })))), [0, 2, 6, 0]);
+  assert.equal(scoreSandwiches([
+    ...fromParty('sandwich_circle', 2), ...fromParty('sandwich_triangle', 1),
+    ...fromParty('sandwich_square', 1), ...fromParty('sandwich_rectangle', 1),
+  ]), 17, 'one set of four and a second set of one');
+  assert.equal(scoreSoup([{ type: 'soup_special' }, { type: 'soup_special' }]), 6);
+  assert.equal(scoreTea([{ type: 'tea_pot' }, { type: 'cookie_set' }, { type: 'cookie_set' }, { type: 'cookie_set' }]), 3);
+  assert.equal(scoreFlipped([{ type: 'caramel_twist', flipped: true }, { type: 'cheesecake', flipped: true }]), 4);
+});
+
+test('Party majority, shared sprinkles and desserts handle ties and empty fruit collections', () => {
+  const conePlayers = [
+    { playedThisRound: [{ type: 'cone_race' }, { type: 'cone_race' }] },
+    { playedThisRound: [{ type: 'cone_race' }] },
+    { playedThisRound: [] },
+  ];
+  assert.deepEqual(scoreConeRace(conePlayers), [4, 0, -4]);
+  assert.deepEqual(scoreConeRace([0, 0, 0].map(() => ({ playedThisRound: [] }))), [0, 0, 0]);
+  const cocoaPlayers = [
+    { playedThisRound: [{ type: 'drink_3', drinkIcons: 3 }] },
+    { playedThisRound: [{ type: 'drink_3', drinkIcons: 3 }] },
+    { playedThisRound: [{ type: 'drink_2', drinkIcons: 2 }] },
+  ];
+  assert.deepEqual(scorePartyDrinkMajority(cocoaPlayers), [6, 6, 3]);
+  const sprinklePlayers = [
+    { playedThisRound: [{ type: 'shared_sprinkles' }, { type: 'shared_sprinkles' }] },
+    { playedThisRound: [{ type: 'shared_sprinkles' }] },
+    { playedThisRound: [{ type: 'shared_sprinkles' }] },
+  ];
+  assert.equal(scoreSharedSprinkles(sprinklePlayers[0], sprinklePlayers), 4);
+  assert.deepEqual(scorePartyDesserts([], 'fruit_basket'), { icecream: 0, fruit: -6 });
+  assert.deepEqual(scorePartyDesserts(Array.from({ length: 4 }, (_, index) => ({ id: `i${index}`, type: 'icecream_cake' }))), { icecream: 12, fruit: 0 });
+});
+
+test('a full Party game with bots resolves menu choices and finishes three rounds', () => {
+  let state = createGame({
+    variant: 'party', partyMenu: 'sampler', seed: 'party-full',
+    players: Array.from({ length: 4 }, (_, seat) => ({ name: `Bot ${seat}`, kind: 'bot' })),
+  });
+  let guard = 0;
+  while (state.phase !== 'game_over' && guard < 200) {
+    guard += 1;
+    for (let seat = 0; seat < state.players.length; seat += 1) {
+      const view = getPlayerView(state, seat);
+      const action = chooseBotAction(view);
+      if (!action) continue;
+      state = action.type === 'choose_menu_card'
+        ? dispatchSpecialAction(state, seat, action)
+        : dispatchAction(state, seat, action);
+    }
+  }
+  assert.equal(state.phase, 'game_over');
+  assert.equal(state.round, 3);
+  assert.deepEqual(state.players.map((entry) => entry.roundScores.length), [3, 3, 3, 3]);
+  assert.ok(state.events.some((event) => event.type === 'menu_choice_started'));
 });

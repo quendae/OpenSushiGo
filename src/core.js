@@ -5,6 +5,28 @@
  * only getPlayerView(state, seat), which redacts hands and locked choices.
  */
 
+import {
+  PARTY_CARD_TYPES,
+  PARTY_HAND_SIZE,
+  activeFamily,
+  buildPartyDeck,
+  effectiveType,
+  normalizePartyMenu,
+  partyDessertDealCount,
+  partyFamily,
+  scoreCaramel,
+  scoreCheesecake,
+  scoreConeRace,
+  scoreFlipped,
+  scoreLoyalty,
+  scorePartyDesserts,
+  scoreSandwiches,
+  scoreSharedSprinkles,
+  scoreSoup,
+  scoreTea,
+  validatePartyMenu,
+} from './party.js';
+
 export const CARD_TYPES = Object.freeze({
   cookie_set: { count: 14, name: 'Zestaw ciasteczek', roundScoring: true },
   afternoon_set: { count: 14, name: 'Popołudniowy zestaw', roundScoring: true },
@@ -22,6 +44,7 @@ export const CARD_TYPES = Object.freeze({
 
 export const HAND_SIZE = Object.freeze({ 2: 10, 3: 9, 4: 8, 5: 7 });
 const GUEST_TYPES = new Set(['bunny_guest', 'cat_guest', 'dog_guest']);
+const DESSERT_FAMILIES = new Set(['adoption_pet', 'icecream_cake', 'fruit_basket']);
 
 const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
 
@@ -44,6 +67,12 @@ export function buildDeck() {
   return deck;
 }
 
+export { PARTY_CARD_TYPES, PARTY_HAND_SIZE };
+
+export function buildPartyMenuDeck(menu = 'sampler') {
+  return buildPartyDeck(menu, CARD_TYPES);
+}
+
 function hashSeed(seed) {
   const text = String(seed);
   let hash = 2166136261;
@@ -62,9 +91,8 @@ function nextRandom(rngState) {
   return { value: ((value ^ (value >>> 14)) >>> 0) / 4294967296, state: nextState };
 }
 
-function shuffledDeck(seed) {
-  const cards = buildDeck().map((card) => ({ ...card }));
-  let rngState = hashSeed(seed);
+function shuffleCards(source, rngState) {
+  const cards = source.map((card) => ({ ...card }));
   for (let index = cards.length - 1; index > 0; index -= 1) {
     const random = nextRandom(rngState);
     rngState = random.state;
@@ -74,11 +102,16 @@ function shuffledDeck(seed) {
   return { cards, rngState };
 }
 
+function shuffledDeck(seed) {
+  return shuffleCards(buildDeck(), hashSeed(seed));
+}
+
 function normalizePlayers(config) {
   const supplied = config.players;
   const count = supplied?.length ?? config.playerCount ?? 2;
-  if (!Number.isInteger(count) || count < 2 || count > 5) {
-    throw new RangeError('Puchate Café requires 2–5 players.');
+  const maximum = config.variant === 'party' ? 8 : 5;
+  if (!Number.isInteger(count) || count < 2 || count > maximum) {
+    throw new RangeError(`Puchate Café requires 2–${maximum} players in this mode.`);
   }
   const source = supplied ?? Array.from({ length: count }, (_, seat) => ({ name: `Gracz ${seat + 1}` }));
   if (!Array.isArray(source) || source.length !== count) throw new TypeError('Invalid players configuration.');
@@ -94,9 +127,13 @@ function normalizePlayers(config) {
       name: String(data.name ?? `Gracz ${seat + 1}`),
       kind: data.kind === 'bot' ? 'bot' : 'human',
       difficulty: data.difficulty === 'easy' ? 'easy' : 'normal',
+      variant: config.variant === 'party' ? 'party' : 'classic',
+      partyMenu: config.variant === 'party' ? normalizePartyMenu(config.partyMenu ?? 'sampler') : null,
       hand: [],
       playedThisRound: [],
       adoptionPets: [],
+      desserts: [],
+      instantRoundPoints: 0,
       score: 0,
       roundScores: [],
       roundHistory: [],
@@ -107,6 +144,8 @@ function normalizePlayers(config) {
 function publicConfig(config, players, seed) {
   return {
     seed,
+    variant: config.variant === 'party' ? 'party' : 'classic',
+    partyMenu: config.variant === 'party' ? normalizePartyMenu(config.partyMenu ?? 'sampler') : null,
     players: players.map(({ id, name, kind, difficulty }) => ({ id, name, kind, difficulty })),
   };
 }
@@ -122,6 +161,33 @@ function addEvent(state, type, details = {}) {
 }
 
 function dealRound(state) {
+  if (state.variant === 'party') {
+    const handSize = PARTY_HAND_SIZE[state.players.length];
+    const fullDeck = buildPartyDeck(state.partyMenu, CARD_TYPES);
+    const dessertLimit = partyDessertDealCount(state.players.length, state.round);
+    const retained = new Set(state.players.flatMap((player) => player.desserts.map((card) => card.id)));
+    const desserts = fullDeck.filter((card) => card.endGameScoring).slice(0, dessertLimit).filter((card) => !retained.has(card.id));
+    const nonDesserts = fullDeck.filter((card) => !card.endGameScoring);
+    const shuffled = shuffleCards([...nonDesserts, ...desserts], state.rngState);
+    state.rngState = shuffled.rngState;
+    state.deck = shuffled.cards;
+    state.drawCursor = 0;
+    const needed = handSize * state.players.length;
+    if (needed > state.deck.length) throw new Error('Not enough cards to deal the party round.');
+    for (const player of state.players) {
+      player.hand = state.deck.slice(state.drawCursor, state.drawCursor + handSize);
+      state.drawCursor += handSize;
+      player.playedThisRound = [];
+      player.instantRoundPoints = 0;
+    }
+    state.pendingSelections = {};
+    state.pendingSpecials = {};
+    state.turnRemainders = null;
+    state.uramakiPlaces = [];
+    state.turn = 1;
+    addEvent(state, 'round_started', { handSize, remainingDeck: state.deck.length - state.drawCursor, variant: 'party' });
+    return;
+  }
   const handSize = HAND_SIZE[state.players.length];
   const needed = handSize * state.players.length;
   if (state.drawCursor + needed > state.deck.length) throw new Error('Not enough cards to deal the round.');
@@ -138,7 +204,11 @@ function dealRound(state) {
 export function createGame(config = {}) {
   const players = normalizePlayers(config);
   const seed = String(config.seed ?? 'puchate-cafe');
-  const shuffled = shuffledDeck(seed);
+  const variant = config.variant === 'party' ? 'party' : 'classic';
+  if (variant === 'party') validatePartyMenu(config.partyMenu ?? 'sampler', players.length);
+  const shuffled = variant === 'party'
+    ? { cards: [], rngState: hashSeed(seed) }
+    : shuffledDeck(seed);
   const state = {
     version: 1,
     // Online hosts should supply their room id. The fallback is deliberately
@@ -146,6 +216,8 @@ export function createGame(config = {}) {
     gameId: String(config.gameId ?? 'puchate-cafe-local'),
     seed,
     rngState: shuffled.rngState,
+    variant,
+    partyMenu: variant === 'party' ? normalizePartyMenu(config.partyMenu ?? 'sampler') : null,
     phase: 'draft',
     round: 1,
     totalRounds: 3,
@@ -154,6 +226,9 @@ export function createGame(config = {}) {
     drawCursor: 0,
     players,
     pendingSelections: {},
+    pendingSpecials: {},
+    turnRemainders: null,
+    uramakiPlaces: [],
     events: [],
     actionLog: [],
     initialConfig: publicConfig(config, players, seed),
@@ -172,11 +247,20 @@ function playerAt(state, seat) {
 }
 
 function availablePaws(player) {
-  return player.playedThisRound.filter((card) => card.type === 'extra_paws');
+  return player.playedThisRound.filter((card) => !card.flipped && activeFamily(card) === 'extra_paws');
+}
+
+function availableSpoons(player) {
+  return player.playedThisRound.filter((card) => !card.flipped && activeFamily(card) === 'silver_spoon');
 }
 
 export function getLegalActions(state, seat) {
   const player = playerAt(state, seat);
+  if (state.phase === 'special_action') {
+    const special = state.pendingSpecials?.[String(seat)];
+    if (!special || special.choice) return [];
+    return special.options.map((card) => ({ type: 'choose_menu_card', cardId: card.id }));
+  }
   if (state.phase !== 'draft' || state.pendingSelections[String(seat)]) return [];
   const actions = player.hand.map((card) => ({ type: 'play_cards', cardIds: [card.id] }));
   if (player.hand.length >= 2) {
@@ -193,6 +277,13 @@ export function getLegalActions(state, seat) {
       }
     }
   }
+  if (player.hand.length >= 1) {
+    for (const spoon of availableSpoons(player)) {
+      for (const card of player.hand) {
+        actions.push({ type: 'play_cards', cardIds: [card.id], useSpoon: spoon.id });
+      }
+    }
+  }
   return actions;
 }
 
@@ -204,6 +295,10 @@ function normalizeAction(action) {
     type: 'play_cards',
     cardIds: action.cardIds.map(String),
     ...(action.useExtraPaws ? { useExtraPaws: String(action.useExtraPaws) } : {}),
+    ...(action.useSpoon ? { useSpoon: String(action.useSpoon) } : {}),
+    ...(action.requestedType ? { requestedType: String(action.requestedType) } : {}),
+    ...(action.specialOrderTargetId ? { specialOrderTargetId: String(action.specialOrderTargetId) } : {}),
+    ...(Array.isArray(action.takeoutTargetIds) ? { takeoutTargetIds: action.takeoutTargetIds.map(String) } : {}),
   };
 }
 
@@ -223,17 +318,46 @@ function validateAction(state, seat, action) {
       throw new Error('The requested Extra Paws card is not available.');
     }
   }
+  if (action.useSpoon) {
+    if (action.useExtraPaws) throw new Error('Use only one bonus action at a time.');
+    if (!availableSpoons(player).some((card) => card.id === action.useSpoon)) throw new Error('The requested spoon is not available.');
+    if (!action.requestedType) throw new Error('Choose which card family the spoon should request.');
+  }
+  const selectedCard = player.hand.find((card) => card.id === action.cardIds[0]);
+  if (selectedCard?.type === 'special_order' && player.playedThisRound.length > 0) {
+    if (!player.playedThisRound.some((card) => card.id === action.specialOrderTargetId && !card.flipped)) {
+      throw new Error('Choose a previously played card for the special order.');
+    }
+  }
+  if (selectedCard?.type === 'takeout_box') {
+    const legalTargets = new Set(player.playedThisRound.filter((card) => !card.flipped).map((card) => card.id));
+    if ((action.takeoutTargetIds ?? []).some((id) => !legalTargets.has(id))) throw new Error('A takeout target is not available.');
+  }
 }
 
-function playRevealedCard(player, card) {
-  const played = { ...card, playedOrder: player.playedThisRound.length };
-  if (played.type === 'adoption_pet') {
-    player.adoptionPets.push(played);
+function cleanHandCard(card) {
+  const clean = { ...card };
+  for (const key of ['playedOrder', 'playedRound', 'playedTurn', 'pairedWith', 'creamToppingId', 'flipped', 'copiedType', 'copiedShape']) delete clean[key];
+  return clean;
+}
+
+function playRevealedCard(player, card, state, extra = {}) {
+  const played = {
+    ...card,
+    ...extra,
+    playedOrder: player.playedThisRound.length,
+    playedRound: state.round,
+    playedTurn: state.turn,
+  };
+  const family = activeFamily(played);
+  if (DESSERT_FAMILIES.has(family)) {
+    player.desserts.push(played);
+    if (family === 'adoption_pet') player.adoptionPets.push(played);
     return played;
   }
-  if (GUEST_TYPES.has(played.type)) {
+  if (GUEST_TYPES.has(effectiveType(played))) {
     const topping = player.playedThisRound.find(
-      (candidate) => candidate.type === 'cream_topping' && !candidate.pairedWith,
+      (candidate) => activeFamily(candidate) === 'cream_topping' && !candidate.pairedWith && !candidate.flipped,
     );
     if (topping) {
       topping.pairedWith = played.id;
@@ -242,6 +366,133 @@ function playRevealedCard(player, card) {
   }
   player.playedThisRound.push(played);
   return played;
+}
+
+function removePlayedCard(player, id) {
+  const index = player.playedThisRound.findIndex((card) => card.id === id);
+  if (index < 0) return null;
+  return player.playedThisRound.splice(index, 1)[0];
+}
+
+function allocateMenuOptions(state) {
+  const options = [];
+  for (let index = state.drawCursor; index < state.deck.length && options.length < 4;) {
+    if (state.deck[index].type === 'menu_card') { index += 1; continue; }
+    options.push(state.deck.splice(index, 1)[0]);
+  }
+  return options;
+}
+
+function copyTargetProperties(target) {
+  const copiedType = effectiveType(target);
+  const definition = CARD_TYPES[copiedType] ?? PARTY_CARD_TYPES[copiedType] ?? {};
+  return {
+    copiedType,
+    ...(target.basePoints ?? definition.basePoints ? { basePoints: target.basePoints ?? definition.basePoints } : {}),
+    ...(target.drinkIcons ?? definition.drinkIcons ? { drinkIcons: target.drinkIcons ?? definition.drinkIcons } : {}),
+    ...(target.raceIcons ?? definition.raceIcons ? { raceIcons: target.raceIcons ?? definition.raceIcons } : {}),
+    ...(target.shape ?? definition.shape ? { copiedShape: target.shape ?? definition.shape } : {}),
+    ...(target.fruits ? { fruits: copy(target.fruits) } : {}),
+  };
+}
+
+function revealSelectedCard(state, player, card, selection) {
+  if (card.type === 'menu_card') {
+    state.pendingSpecials[String(player.seat)] = { type: 'menu', sourceCardId: card.id, options: allocateMenuOptions(state), choice: null };
+    return { ...card, menuPending: true };
+  }
+  if (card.type === 'takeout_box') {
+    for (const id of selection.takeoutTargetIds ?? []) {
+      const target = player.playedThisRound.find((candidate) => candidate.id === id);
+      if (target) target.flipped = true;
+    }
+    return { ...card, discarded: true, flippedCards: selection.takeoutTargetIds ?? [] };
+  }
+  if (card.type === 'special_order') {
+    const target = player.playedThisRound.find((candidate) => candidate.id === selection.specialOrderTargetId && !candidate.flipped);
+    if (!target) return { ...card, discarded: true };
+    return playRevealedCard(player, card, state, copyTargetProperties(target));
+  }
+  return playRevealedCard(player, card, state);
+}
+
+function resolveSpoons(state, leftovers, revealDetails) {
+  for (const player of state.players) {
+    const selection = state.pendingSelections[String(player.seat)];
+    if (!selection?.useSpoon) continue;
+    let donorSeat = null;
+    let donated = null;
+    for (let offset = 1; offset < state.players.length; offset += 1) {
+      const seat = (player.seat + offset) % state.players.length;
+      const index = leftovers[seat].findIndex((card) => card.type === selection.requestedType || partyFamily(card.type) === selection.requestedType);
+      if (index >= 0) {
+        donorSeat = seat;
+        [donated] = leftovers[seat].splice(index, 1);
+        break;
+      }
+    }
+    if (!donated) continue;
+    const spoon = removePlayedCard(player, selection.useSpoon);
+    if (spoon) leftovers[donorSeat].push(cleanHandCard(spoon));
+    const played = playRevealedCard(player, donated, state);
+    const detail = revealDetails.find((entry) => entry.seat === player.seat);
+    detail.cardIds.push(played.id);
+    detail.cardTypes.push(played.type);
+    detail.usedSpoon = selection.useSpoon;
+  }
+}
+
+function resolveSoupCollisions(state) {
+  const soups = state.players.flatMap((player) => player.playedThisRound
+    .filter((card) => activeFamily(card) === 'soup_special' && card.playedRound === state.round && card.playedTurn === state.turn)
+    .map((card) => ({ player, card })));
+  if (soups.length <= 1) return;
+  for (const { player, card } of soups) removePlayedCard(player, card.id);
+  addEvent(state, 'soups_discarded', { seats: soups.map(({ player }) => player.seat) });
+}
+
+function raceIcons(player) {
+  return player.playedThisRound.reduce((sum, card) => sum + (!card.flipped && activeFamily(card) === 'tray_race'
+    ? (card.raceIcons ?? PARTY_CARD_TYPES[effectiveType(card)]?.raceIcons ?? 0) : 0), 0);
+}
+
+function awardTrayRace(state, atRoundEnd = false) {
+  const pointsByPlace = [8, 5, 2];
+  if (state.uramakiPlaces.length >= 3) return;
+  let candidates = state.players.map((player) => ({ player, icons: raceIcons(player) }))
+    .filter((entry) => atRoundEnd ? entry.icons > 0 : entry.icons >= 10)
+    .sort((a, b) => b.icons - a.icons);
+  if (atRoundEnd && candidates.length) candidates = candidates.filter((entry) => entry.icons === candidates[0].icons);
+  while (candidates.length && state.uramakiPlaces.length < 3) {
+    const top = candidates[0].icons;
+    const tied = candidates.filter((entry) => entry.icons === top);
+    const points = pointsByPlace[state.uramakiPlaces.length] ?? 0;
+    for (const { player, icons } of tied) {
+      player.instantRoundPoints += points;
+      const raced = player.playedThisRound.filter((card) => activeFamily(card) === 'tray_race');
+      player.playedThisRound = player.playedThisRound.filter((card) => activeFamily(card) !== 'tray_race');
+      state.uramakiPlaces.push({ seat: player.seat, points, icons, cardIds: raced.map((card) => card.id) });
+    }
+    candidates = candidates.filter((entry) => entry.icons !== top);
+    if (atRoundEnd) break;
+  }
+  if (state.uramakiPlaces.length) addEvent(state, 'tray_race_scored', { places: copy(state.uramakiPlaces) });
+}
+
+function finalizeTurn(state) {
+  resolveSoupCollisions(state);
+  awardTrayRace(state);
+  const leftovers = state.turnRemainders;
+  for (const player of state.players) {
+    const fromSeat = (player.seat - 1 + state.players.length) % state.players.length;
+    player.hand = leftovers[fromSeat];
+  }
+  state.turnRemainders = null;
+  state.pendingSelections = {};
+  state.pendingSpecials = {};
+  state.phase = 'draft';
+  if (state.players.every((player) => player.hand.length === 0)) finishRound(state);
+  else state.turn += 1;
 }
 
 function resolveSelections(state) {
@@ -255,34 +506,25 @@ function resolveSelections(state) {
     if (selection.useExtraPaws) {
       const pawsIndex = player.playedThisRound.findIndex((card) => card.id === selection.useExtraPaws);
       const [paws] = player.playedThisRound.splice(pawsIndex, 1);
-      remainder.push({
-        id: paws.id,
-        type: paws.type,
-        name: paws.name,
-        roundScoring: paws.roundScoring,
-        endGameScoring: paws.endGameScoring,
-      });
+      remainder.push(cleanHandCard(paws));
     }
-    const revealed = selected.map((card) => playRevealedCard(player, card));
+    const revealed = selected.map((card) => revealSelectedCard(state, player, card, selection));
     leftovers[player.seat] = remainder;
     revealDetails.push({
       seat: player.seat,
       cardIds: revealed.map((card) => card.id),
       cardTypes: revealed.map((card) => card.type),
       usedExtraPaws: selection.useExtraPaws ?? null,
+      usedSpoon: null,
     });
   }
-
-  // Passing left: cards leaving seat N become seat N+1's next hand.
-  for (const player of state.players) {
-    const fromSeat = (player.seat - 1 + state.players.length) % state.players.length;
-    player.hand = leftovers[fromSeat];
-  }
+  resolveSpoons(state, leftovers, revealDetails);
   addEvent(state, 'cards_revealed', { plays: revealDetails });
-  state.pendingSelections = {};
-
-  if (state.players.every((player) => player.hand.length === 0)) finishRound(state);
-  else state.turn += 1;
+  state.turnRemainders = leftovers;
+  if (Object.keys(state.pendingSpecials).length) {
+    state.phase = 'special_action';
+    addEvent(state, 'menu_choice_started', { seats: Object.keys(state.pendingSpecials).map(Number) });
+  } else finalizeTurn(state);
 }
 
 export function dispatchAction(inputState, seat, rawAction) {
@@ -300,10 +542,45 @@ export function dispatchAction(inputState, seat, rawAction) {
   return state;
 }
 
+export function dispatchSpecialAction(inputState, seat, rawAction) {
+  if (inputState.phase !== 'special_action') throw new Error('No special choice is waiting.');
+  const action = rawAction ?? {};
+  if (action.type !== 'choose_menu_card') throw new TypeError('Expected a choose_menu_card action.');
+  const current = inputState.pendingSpecials?.[String(seat)];
+  if (!current || current.choice) throw new Error('This player has no menu choice.');
+  const chosen = current.options.find((card) => card.id === String(action.cardId));
+  if (!chosen) throw new Error('That menu card is not available.');
+  const state = copy(inputState);
+  const special = state.pendingSpecials[String(seat)];
+  special.choice = chosen.id;
+  const player = playerAt(state, seat);
+  if (chosen.type === 'takeout_box') {
+    // Choosing from the menu may legally do nothing; the player had no chance
+    // to mark cards before seeing this option.
+  } else if (chosen.type === 'special_order') {
+    const target = [...player.playedThisRound].reverse().find((card) => !card.flipped);
+    if (target) playRevealedCard(player, chosen, state, copyTargetProperties(target));
+  } else {
+    playRevealedCard(player, chosen, state);
+  }
+  addEvent(state, 'menu_card_chosen', { seat, cardId: chosen.id, cardType: chosen.type });
+  state.actionLog.push({ seat, action: { type: 'choose_menu_card', cardId: chosen.id } });
+
+  if (Object.values(state.pendingSpecials).every((entry) => entry.choice)) {
+    const returned = Object.values(state.pendingSpecials).flatMap((entry) => entry.options.filter((card) => card.id !== entry.choice));
+    const suffix = [...state.deck.slice(state.drawCursor), ...returned];
+    const shuffled = shuffleCards(suffix, state.rngState);
+    state.rngState = shuffled.rngState;
+    state.deck.splice(state.drawCursor, state.deck.length - state.drawCursor, ...shuffled.cards);
+    finalizeTurn(state);
+  }
+  return state;
+}
+
 const cardsOf = (playerOrCards) => Array.isArray(playerOrCards)
   ? playerOrCards
   : (playerOrCards?.playedThisRound ?? []);
-const countType = (cards, type) => cards.reduce((sum, card) => sum + (card.type === type ? 1 : 0), 0);
+const countType = (cards, type) => cards.reduce((sum, card) => sum + (!card.flipped && effectiveType(card) === type ? 1 : 0), 0);
 
 export const scoreCookieSets = (playerOrCards) => Math.floor(countType(cardsOf(playerOrCards), 'cookie_set') / 2) * 5;
 export const scoreAfternoonSets = (playerOrCards) => Math.floor(countType(cardsOf(playerOrCards), 'afternoon_set') / 3) * 10;
@@ -314,20 +591,24 @@ export function scoreSweetBuns(playerOrCards) {
 }
 
 export function scoreGuests(playerOrCards) {
-  return cardsOf(playerOrCards).reduce((sum, card) => sum + (GUEST_TYPES.has(card.type) ? (card.basePoints ?? CARD_TYPES[card.type].basePoints) : 0), 0);
+  return cardsOf(playerOrCards).reduce((sum, card) => {
+    const type = effectiveType(card);
+    return sum + (!card.flipped && GUEST_TYPES.has(type) ? (card.basePoints ?? CARD_TYPES[type].basePoints) : 0);
+  }, 0);
 }
 
 export function scoreCreamTopping(playerOrCards) {
   const cards = cardsOf(playerOrCards);
-  const explicitPairs = cards.filter((card) => GUEST_TYPES.has(card.type) && card.creamToppingId);
-  if (explicitPairs.length > 0 || cards.some((card) => card.type === 'cream_topping' && card.pairedWith)) {
+  const explicitPairs = cards.filter((card) => !card.flipped && GUEST_TYPES.has(effectiveType(card)) && card.creamToppingId);
+  if (explicitPairs.length > 0 || cards.some((card) => !card.flipped && activeFamily(card) === 'cream_topping' && card.pairedWith)) {
     return explicitPairs.reduce((sum, guest) => sum + 2 * (guest.basePoints ?? CARD_TYPES[guest.type].basePoints), 0);
   }
   let available = 0;
   let bonus = 0;
   for (const card of cards) {
-    if (card.type === 'cream_topping') available += 1;
-    else if (GUEST_TYPES.has(card.type) && available > 0) {
+    if (card.flipped) continue;
+    if (activeFamily(card) === 'cream_topping') available += 1;
+    else if (GUEST_TYPES.has(effectiveType(card)) && available > 0) {
       available -= 1;
       bonus += 2 * (card.basePoints ?? CARD_TYPES[card.type].basePoints);
     }
@@ -336,7 +617,10 @@ export function scoreCreamTopping(playerOrCards) {
 }
 
 export function drinkIcons(playerOrCards) {
-  return cardsOf(playerOrCards).reduce((sum, card) => sum + (card.drinkIcons ?? CARD_TYPES[card.type]?.drinkIcons ?? 0), 0);
+  return cardsOf(playerOrCards).reduce((sum, card) => {
+    const type = effectiveType(card);
+    return sum + (!card.flipped && partyFamily(type) === 'drink' ? (card.drinkIcons ?? CARD_TYPES[type]?.drinkIcons ?? 0) : 0);
+  }, 0);
 }
 
 export function scoreDrinkMajority(players) {
@@ -360,8 +644,38 @@ export function scoreDrinkMajority(players) {
   return points;
 }
 
+export function scorePartyDrinkMajority(players) {
+  const icons = players.map(drinkIcons);
+  const points = players.map(() => 0);
+  const awards = players.length >= 6 ? [6, 4, 2] : [6, 3];
+  const levels = [...new Set(icons.filter((value) => value > 0))].sort((a, b) => b - a).slice(0, awards.length);
+  levels.forEach((level, place) => icons.forEach((value, seat) => { if (value === level) points[seat] = awards[place]; }));
+  return points;
+}
+
 export function scoreRound(player, allPlayers = [player]) {
   const seat = allPlayers.indexOf(player) >= 0 ? allPlayers.indexOf(player) : (player.seat ?? 0);
+  if (player.variant === 'party') {
+    const cone = player.partyMenu?.roll === 'cone_race' ? (scoreConeRace(allPlayers)[seat] ?? 0) : 0;
+    const drinks = scorePartyDrinkMajority(allPlayers)[seat] ?? 0;
+    const cards = player.playedThisRound ?? [];
+    const breakdown = {
+      sets: scoreCookieSets(cards) + scoreAfternoonSets(cards) + scoreSweetBuns(cards),
+      guests: scoreGuests(cards) + scoreCreamTopping(cards),
+      drinks,
+      coneRace: cone,
+      trayRace: player.instantRoundPoints ?? 0,
+      caramel: scoreCaramel(cards),
+      cheesecake: scoreCheesecake(cards),
+      sandwiches: scoreSandwiches(cards),
+      sprinkles: scoreSharedSprinkles(player, allPlayers),
+      soup: scoreSoup(cards),
+      loyalty: scoreLoyalty(player, allPlayers),
+      tea: scoreTea(cards),
+      takeout: scoreFlipped(cards),
+    };
+    return { ...breakdown, total: Object.values(breakdown).reduce((sum, value) => sum + value, 0) };
+  }
   const drinks = scoreDrinkMajority(allPlayers)[seat] ?? 0;
   const breakdown = {
     cookies: scoreCookieSets(player),
@@ -393,27 +707,34 @@ export function scoreAdoptionPets(players) {
 
 export function scoreFinalGame(stateOrPlayers) {
   const players = Array.isArray(stateOrPlayers) ? stateOrPlayers : stateOrPlayers.players;
+  const selectedDessert = Array.isArray(stateOrPlayers) ? null : stateOrPlayers.partyMenu?.dessert;
   const adoptionPoints = scoreAdoptionPets(players);
+  const partyMode = players[0]?.variant === 'party';
   const scoredPlayers = players.map((player, seat) => ({
     seat,
     id: player.id,
     name: player.name,
     roundPoints: player.score,
     adoptionPoints: adoptionPoints[seat],
-    total: player.score + adoptionPoints[seat],
+    ...scorePartyDesserts(player.desserts, selectedDessert),
+    total: player.score + adoptionPoints[seat] + (partyMode
+      ? Object.values(scorePartyDesserts(player.desserts, selectedDessert)).reduce((sum, value) => sum + value, 0)
+      : 0),
     adoptionPets: player.adoptionPets?.length ?? 0,
+    dessertCount: partyMode ? (player.desserts?.length ?? 0) : (player.adoptionPets?.length ?? 0),
   }));
   const winningScore = Math.max(...scoredPlayers.map((player) => player.total));
   const scoreLeaders = scoredPlayers.filter((player) => player.total === winningScore);
-  const mostAdoptionsAmongLeaders = Math.max(...scoreLeaders.map((player) => player.adoptionPets));
+  const mostDessertsAmongLeaders = Math.max(...scoreLeaders.map((player) => player.dessertCount));
   return {
     players: scoredPlayers,
     winningScore,
-    winners: scoreLeaders.filter((player) => player.adoptionPets === mostAdoptionsAmongLeaders).map((player) => player.seat),
+    winners: scoreLeaders.filter((player) => player.dessertCount === mostDessertsAmongLeaders).map((player) => player.seat),
   };
 }
 
 function finishRound(state) {
+  if (state.variant === 'party') awardTrayRace(state, true);
   const roundResults = state.players.map((player) => scoreRound(player, state.players));
   state.players.forEach((player, seat) => {
     const result = roundResults[seat];
@@ -449,10 +770,14 @@ export function getPlayerView(state, seat) {
       name: player.name,
       kind: player.kind,
       difficulty: player.difficulty,
+      variant: player.variant,
+      partyMenu: copy(player.partyMenu),
       score: player.score,
       handCount: player.hand.length,
       playedThisRound: copy(player.playedThisRound),
       adoptionPetCount: player.adoptionPets.length,
+      dessertCount: player.desserts?.length ?? player.adoptionPets.length,
+      desserts: copy(player.desserts ?? player.adoptionPets),
       roundScores: copy(player.roundScores),
     };
     return player.seat === seat ? { ...common, hand: copy(player.hand) } : common;
@@ -461,6 +786,8 @@ export function getPlayerView(state, seat) {
     version: state.version,
     gameId: state.gameId,
     phase: state.phase,
+    variant: state.variant,
+    partyMenu: copy(state.partyMenu),
     round: state.round,
     totalRounds: state.totalRounds,
     turn: state.turn,
@@ -475,6 +802,9 @@ export function getPlayerView(state, seat) {
         ? { cardIds: copy(state.pendingSelections[String(player.seat)].cardIds) }
         : {}),
     })),
+    specialChoice: state.phase === 'special_action' && state.pendingSpecials?.[String(seat)]
+      ? { type: 'menu', options: copy(state.pendingSpecials[String(seat)].options), chosen: state.pendingSpecials[String(seat)].choice }
+      : null,
     legalActions: getLegalActions(state, seat),
     events: copy(state.events),
     result: copy(state.result),
@@ -496,6 +826,8 @@ export function replay(record, actions) {
   const config = parsed.initialConfig ?? parsed.config ?? parsed;
   const log = actions ?? parsed.actionLog ?? parsed.actions ?? [];
   let state = createGame(config);
-  for (const entry of log) state = dispatchAction(state, entry.seat, entry.action);
+  for (const entry of log) state = entry.action?.type === 'choose_menu_card'
+    ? dispatchSpecialAction(state, entry.seat, entry.action)
+    : dispatchAction(state, entry.seat, entry.action);
   return state;
 }

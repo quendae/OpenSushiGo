@@ -10,6 +10,7 @@ const hash = (text) => {
 };
 
 function cardValue(card, view) {
+  if (!card) return -100;
   const ownCards = view.me.playedThisRound;
   const same = ownCards.filter((played) => played.type === card.type).length;
   switch (card.type) {
@@ -36,6 +37,29 @@ function cardValue(card, view) {
       const most = Math.max(...view.players.map((player) => player.adoptionPetCount));
       return 3.5 + (view.me.adoptionPetCount <= most ? 1.5 : 0);
     }
+    case 'cone_race': return same < 2 ? 3.5 : 2.2;
+    case 'tray_race_1': return 1.4;
+    case 'tray_race_2': return 2.8;
+    case 'tray_race_3': return 4.2;
+    case 'caramel_twist': return same === 0 ? -1 : same === 1 ? 10 : 1;
+    case 'cheesecake': return same === 0 ? 2.5 : same === 1 ? 4.5 : -3;
+    case 'sandwich_circle':
+    case 'sandwich_triangle':
+    case 'sandwich_square':
+    case 'sandwich_rectangle': return ownCards.some((played) => played.type === card.type) ? 1.5 : 4;
+    case 'shared_sprinkles': return 2.5 + view.players.filter((player) => player.playedThisRound.some((played) => played.type === 'shared_sprinkles')).length;
+    case 'soup_special': return 3.3;
+    case 'loyalty_card': return 3.2;
+    case 'tea_pot': return Math.max(2, ...Object.values(ownCards.reduce((groups, played) => ({ ...groups, [played.type]: (groups[played.type] ?? 0) + 1 }), {})));
+    case 'menu_card': return 3.4;
+    case 'silver_spoon': return view.me.handCount > 2 ? 3.2 : 0;
+    case 'special_order': {
+      const targets = ownCards.filter((played) => played.type !== 'special_order');
+      return targets.length ? Math.max(...targets.map((played) => cardValue(played, view))) : 0;
+    }
+    case 'takeout_box': return ownCards.some((played) => played.type === 'caramel_twist') ? 4 : 1.5;
+    case 'icecream_cake': return same % 4 === 3 ? 9 : 2.7;
+    case 'fruit_basket': return 3;
     default: return 0;
   }
 }
@@ -56,6 +80,10 @@ export function chooseBotAction(view, difficulty = view.me?.difficulty ?? 'norma
   const legal = view.legalActions ?? [];
   if (legal.length === 0) return null;
   const salt = hash(`${view.gameId}:${view.round}:${view.turn}:${view.seat}`);
+  if (legal[0].type === 'choose_menu_card') {
+    const ranked = legal.map((action) => ({ action, value: cardValue(view.specialChoice.options.find((card) => card.id === action.cardId), view) }));
+    return ranked.sort((a, b) => b.value - a.value)[0].action;
+  }
   if (difficulty === 'easy') return legal[salt % legal.length];
 
   let bestValue = -Infinity;
@@ -67,7 +95,23 @@ export function chooseBotAction(view, difficulty = view.me?.difficulty ?? 'norma
       best = [action];
     } else if (value === bestValue) best.push(action);
   }
-  return best[salt % best.length];
+  const chosen = { ...best[salt % best.length] };
+  const selected = view.me.hand.find((card) => card.id === chosen.cardIds[0]);
+  if (chosen.useSpoon) {
+    const menu = view.partyMenu;
+    const families = menu ? [menu.roll, ...menu.appetizers, ...menu.specials].filter((family) => family !== 'silver_spoon') : ['dog_guest'];
+    chosen.requestedType = families[salt % families.length];
+  }
+  if (selected?.type === 'special_order') {
+    const targets = view.me.playedThisRound.filter((card) => !card.flipped);
+    if (targets.length) chosen.specialOrderTargetId = targets.sort((a, b) => cardValue(b, view) - cardValue(a, view))[0].id;
+  }
+  if (selected?.type === 'takeout_box') {
+    chosen.takeoutTargetIds = view.me.playedThisRound
+      .filter((card) => !card.flipped && (card.type === 'caramel_twist' || card.type === 'cheesecake'))
+      .map((card) => card.id);
+  }
+  return chosen;
 }
 
 export const easyBot = (view) => chooseBotAction(view, 'easy');
@@ -77,4 +121,3 @@ export function createBot(difficulty = 'normal') {
   if (!['easy', 'normal'].includes(difficulty)) throw new RangeError('Bot difficulty must be easy or normal.');
   return Object.freeze({ difficulty, chooseAction: (view) => chooseBotAction(view, difficulty) });
 }
-

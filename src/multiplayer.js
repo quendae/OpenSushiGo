@@ -8,7 +8,7 @@
 
 export const PROTOCOL_VERSION = 1;
 export const MIN_SEATS = 2;
-export const MAX_SEATS = 5;
+export const MAX_SEATS = 8;
 export const MESSAGE_TYPES = Object.freeze([
   "hello",
   "welcome",

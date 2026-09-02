@@ -44,7 +44,7 @@
             </button>
           </div>
           <div class="quick-facts" aria-label="Informacje o grze">
-            <span><b>2–5</b> graczy</span><i aria-hidden="true"></i>
+            <span><b>2–8</b> graczy</span><i aria-hidden="true"></i>
             <span><b>3</b> rundy</span><i aria-hidden="true"></i>
             <span><b>15 min</b> zabawy</span>
           </div>
@@ -75,15 +75,38 @@
             <input id="player-name" name="playerName" type="text" maxlength="20" value="Barista" autocomplete="nickname" required>
 
             <fieldset class="segmented-field">
+              <legend>Wariant gry</legend>
+              <div class="segmented-control variant-control">
+                <label><input type="radio" name="gameVariant" value="classic" checked><span>Klasyczne Café</span></label>
+                <label><input type="radio" name="gameVariant" value="party"><span>Przyjęcie ✦</span></label>
+              </div>
+            </fieldset>
+
+            <div id="party-menu-field" class="party-menu-field" hidden>
+              <label for="party-menu">Menu przyjęcia</label>
+              <select id="party-menu" name="partyMenu">
+                <option value="sampler">Próbne przyjęcie — łatwe na start</option>
+                <option value="clever">Sprytne zamówienia — więcej planowania</option>
+                <option value="lively">Głośne przyjęcie — dużo interakcji</option>
+                <option value="cozy">Puchaty bankiet — dla większej grupy</option>
+              </select>
+              <p id="party-menu-description" class="field-help">Nowe rożki, serniczki, menu dnia i torty lodowe.</p>
+            </div>
+
+            <fieldset class="segmented-field">
               <legend>Liczba graczy</legend>
               <div class="segmented-control" id="player-count-options">
                 <label><input type="radio" name="playerCount" value="2"><span>2</span></label>
                 <label><input type="radio" name="playerCount" value="3" checked><span>3</span></label>
                 <label><input type="radio" name="playerCount" value="4"><span>4</span></label>
                 <label><input type="radio" name="playerCount" value="5"><span>5</span></label>
+                <label class="party-player" hidden><input type="radio" name="playerCount" value="6"><span>6</span></label>
+                <label class="party-player" hidden><input type="radio" name="playerCount" value="7"><span>7</span></label>
+                <label class="party-player" hidden><input type="radio" name="playerCount" value="8"><span>8</span></label>
               </div>
               <select id="player-count" name="playerCountSelect" aria-label="Liczba graczy">
                 <option value="2">2 graczy</option><option value="3" selected>3 graczy</option><option value="4">4 graczy</option><option value="5">5 graczy</option>
+                <option class="party-player" value="6" hidden>6 graczy</option><option class="party-player" value="7" hidden>7 graczy</option><option class="party-player" value="8" hidden>8 graczy</option>
               </select>
             </fieldset>
 
@@ -113,8 +136,12 @@
               <h2>Załóż stolik</h2><p>To Ty ustawiasz miejsca i rozpoczynasz grę.</p>
               <label for="host-name">Twoje imię</label>
               <input id="host-name" name="hostName" type="text" maxlength="20" value="Gospodarz" autocomplete="nickname" required>
+              <label for="host-variant">Wariant</label>
+              <select id="host-variant" name="hostVariant"><option value="classic">Klasyczne Café</option><option value="party">Przyjęcie w Café</option></select>
+              <label for="host-party-menu">Menu przyjęcia</label>
+              <select id="host-party-menu" name="hostPartyMenu" disabled><option value="sampler">Próbne przyjęcie</option><option value="clever">Sprytne zamówienia</option><option value="lively">Głośne przyjęcie</option><option value="cozy">Puchaty bankiet</option></select>
               <label for="host-player-count">Liczba graczy</label>
-              <select id="host-player-count" name="hostPlayerCount"><option value="2">2 graczy</option><option value="3" selected>3 graczy</option><option value="4">4 graczy</option><option value="5">5 graczy</option></select>
+              <select id="host-player-count" name="hostPlayerCount"><option value="2">2 graczy</option><option value="3" selected>3 graczy</option><option value="4">4 graczy</option><option value="5">5 graczy</option><option class="party-player" value="6" hidden>6 graczy</option><option class="party-player" value="7" hidden>7 graczy</option><option class="party-player" value="8" hidden>8 graczy</option></select>
               <button class="secondary-button full-width" type="submit"><span data-icon="plus" aria-hidden="true"></span> Utwórz pokój</button>
             </form>
             <div class="mode-divider" aria-hidden="true"><span>lub</span></div>
@@ -220,8 +247,14 @@
         <article><span class="rule-swatch swatch-adopt" data-icon="paw"></span><div><strong>Adopcja</strong><p>Najwięcej nowych domów daje premię na koniec.</p></div></article>
       </div>
       <div class="rule-note"><span data-icon="sparkle"></span><p>Po trzech rundach wygrywa kawiarnia z największą liczbą serduszek.</p></div>
+      <div class="party-rules-note"><strong>Tryb Przyjęcie</strong><p>Każde menu zawiera gości, 1 wyścig, 3 przekąski, 2 dodatki i 1 deser. Ręka ma 10–7 kart zależnie od liczby graczy, a desery odkładasz do końca trzeciej rundy.</p></div>
     </div>
     <div class="dialog-footer"><button class="primary-button" type="button" data-close-dialog>Rozumiem, gramy!</button></div>
+  </dialog>
+
+  <dialog id="menu-dialog" class="game-dialog menu-choice-dialog" aria-labelledby="menu-choice-title">
+    <div class="dialog-header"><div><p class="eyebrow">Menu dnia</p><h2 id="menu-choice-title">Wybierz jedną kartę</h2><p>Pozostałe trzy wrócą do talii.</p></div></div>
+    <div class="dialog-body"><div id="menu-options" class="menu-options" aria-live="polite"></div></div>
   </dialog>
 
   <dialog id="round-dialog" class="game-dialog result-dialog" aria-labelledby="round-result-title">

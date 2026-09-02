@@ -41,12 +41,13 @@ test("room codes and names are normalized at the boundary", () => {
   assert.throws(() => normalizePlayerName(" "), /cannot be empty/i);
 });
 
-test("seat count is strictly limited to two through five", () => {
+test("seat count is strictly limited to two through eight", () => {
   assert.equal(validateSeatCount(2), 2);
-  assert.equal(validateSeatCount(MAX_SEATS), 5);
-  assert.throws(() => validateSeatCount(1), /between 2 and 5/i);
-  assert.throws(() => validateSeatCount(6), /between 2 and 5/i);
-  assert.throws(() => validateSeatCount(2.5), /between 2 and 5/i);
+  assert.equal(validateSeatCount(MAX_SEATS), 8);
+  assert.throws(() => validateSeatCount(1), /between 2 and 8/i);
+  assert.equal(validateSeatCount(8), 8);
+  assert.throws(() => validateSeatCount(9), /between 2 and 8/i);
+  assert.throws(() => validateSeatCount(2.5), /between 2 and 8/i);
 });
 
 test("lobby validation rejects duplicate seats and connected bots", () => {

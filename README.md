@@ -4,14 +4,16 @@ Oryginalna, przeglądarkowa gra karciana o prowadzeniu kawiarni dla zwierzaków.
 
 ## Co działa
 
-- pełna talia 108 kart i trzy rundy dla 2–5 graczy,
+- klasyczna talia 108 kart dla 2–5 graczy oraz wariant Przyjęcie dla 2–8 graczy,
+- cztery gotowe menu Przyjęcia, każde z 69 aktywnymi kartami,
 - lokalna gra z botami na poziomie łatwym lub normalnym,
 - jednoczesny wybór kart, przekazywanie rąk i automatyczna punktacja,
-- wszystkie typy kart: zestawy, napoje, goście, polewa, adopcje i dodatkowe łapki,
+- komplet mechanicznych odpowiedników kart z *Sushi Go!* i *Sushi Go Party!*,
 - prywatny multiplayer host-authoritative przez WebRTC DataChannel,
 - osobny Cloudflare Worker do sygnalizacji pokoi,
 - responsywny stół, obsługa dotyku, ograniczenie animacji i czytelność bez polegania wyłącznie na kolorze,
-- 12 oryginalnych ilustracji kart w miękkim, trójwymiarowym stylu — bez cudzych grafik.
+- animowane rozdawanie, odkrywanie i podsumowania oraz proceduralne efekty dźwiękowe z wyciszeniem,
+- 27 oryginalnych ilustracji kart w miękkim, trójwymiarowym stylu — bez cudzych grafik.
 
 ## Uruchomienie lokalne
 
@@ -46,9 +48,11 @@ Do połączeń przez restrykcyjny NAT należy dodać własny serwer TURN w konfi
 
 ```text
 src/core.js         czysty, deterministyczny silnik zasad
+src/party.js        menu, katalog i punktacja wariantu Przyjęcie
 src/bots.js         decyzje botów przez ten sam interfejs akcji
 src/app.js          kontroler ekranów i sesji
 src/ui.js           bezpieczne renderowanie komponentów DOM
+src/sound.js        proceduralne efekty Web Audio
 src/art.js          mapa oryginalnych ilustracji rastrowych kart
 assets/cards/       zoptymalizowane ilustracje WebP
 src/multiplayer.js  WebRTC, protokół i autorytet hosta
@@ -62,7 +66,9 @@ Najważniejsza zasada sieciowa: **jedna autorytatywna symulacja, wiele prywatnyc
 
 W każdej turze wszyscy wybierają kartę zakrytą. Po zatwierdzeniu przez cały stół karty są odkrywane jednocześnie, a pozostałe ręce przechodzą w lewo. Po rundzie punktowane są pary ciasteczek, trójki zestawów, kolekcje bułeczek, goście i popularność napojów. Zwierzaki do adopcji punktują dopiero po trzeciej rundzie.
 
-### Mechaniczne odpowiedniki kart
+W wariancie Przyjęcie liczba kart na ręce wynosi 10 / 10 / 9 / 9 / 8 / 8 / 7 dla 2–8 graczy. Desery dochodzą do talii przed każdą rundą, a menu respektują ograniczenia kart przeznaczonych tylko dla 2–6 lub 3–8 osób. Implementację porównano z [oficjalną instrukcją Sushi Go Party!](https://gamewright.com/pdfs/Rules/SushiGoPartyTM-RULES.pdf) i [kartą produktu Gamewright](https://gamewright.com/product/Sushi-Go-Party).
+
+### Mechaniczne odpowiedniki kart klasycznych
 
 | Puchate Café | Liczba | Punktacja / działanie |
 |---|---:|---|
@@ -75,6 +81,34 @@ W każdej turze wszyscy wybierają kartę zakrytą. Po zatwierdzeniu przez cały
 | Kremowa polewa | 6 | następny gość ma wartość ×3 |
 | Dodatkowe łapki | 4 | w późniejszej turze wybierz 2 karty |
 
+### Odpowiedniki kart Przyjęcia 1:1
+
+| Puchate Café | Odpowiednik mechaniczny | Czytelny skrót na karcie |
+|---|---|---|
+| Kakao | Maki Roll | 1. = 6, 2. = 3 pkt |
+| Rożek waflowy | Temaki | najwięcej +4, najmniej −4 |
+| Taca ekspresowa | Uramaki | wyścig do 10; 8 / 5 / 2 pkt |
+| Ciasteczka | Tempura | ×2 = 5 pkt |
+| Podwieczorek | Sashimi | ×3 = 10 pkt |
+| Bułeczki | Dumpling | 1–5+ = 1 / 3 / 6 / 10 / 15 pkt |
+| Karmelki | Eel | 1 = −3, 2+ = 7 pkt |
+| Serniczki | Tofu | 1 / 2 / 3+ = 2 / 6 / 0 pkt |
+| Kanapki w 4 kształtach | Onigiri | 1 / 2 / 3 / 4 różne = 1 / 4 / 9 / 16 pkt |
+| Wspólna posypka | Edamame | +1 za rywala z posypką, maks. 4 na kartę |
+| Zupa dnia | Miso Soup | 3 pkt, ale zderzenie w tej samej turze odrzuca zupy |
+| Kremowa polewa | Wasabi | następny gość ×3 |
+| Dodatkowe łapki | Chopsticks | później wybierz 2 karty |
+| Stały gość | Soy Sauce | 4 pkt za kartę przy największej różnorodności |
+| Dzbanek herbaty | Tea | każda karta = wielkość największego zestawu |
+| Menu dnia | Menu | dobierz 4, wybierz 1 |
+| Srebrna łyżeczka | Spoon | poproś o typ i wymień kartę |
+| Specjalne zamówienie | Special Order | kopiuje wcześniej zagraną kartę |
+| Pudełko na wynos | Takeout Box | odwrócone karty po 2 pkt |
+| Króliczek / Kotek / Piesek | Egg / Salmon / Squid Nigiri | 1 / 2 / 3 pkt |
+| Adopcja | Pudding | na końcu najwięcej +6, najmniej −6 |
+| Tort lodowy | Green Tea Ice Cream | ×4 = 12 pkt na końcu |
+| Owocowy koszyk | Fruit | każdy owoc: 0–5+ = −2 / 0 / 1 / 3 / 6 / 10 pkt |
+
 ## Licencja i grafiki
 
-Kod jest dostępny na licencji MIT. Nazwa „Puchate Café”, teksty i ilustracje w tym repozytorium są oryginalne i nie są oficjalnie związane z *Sushi Go!* ani jego wydawcą.
+Kod jest dostępny na licencji MIT. Nazwa „Puchate Café”, teksty i ilustracje w tym repozytorium są oryginalne i nie są oficjalnie związane z *Sushi Go!* ani jego wydawcą. Zapis promptów użytych do przygotowania nowych ilustracji znajduje się w [PARTY_ART_PROMPTS.md](PARTY_ART_PROMPTS.md).

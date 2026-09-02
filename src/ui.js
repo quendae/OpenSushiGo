@@ -12,7 +12,27 @@ export const CARD_PRESENTATION = Object.freeze({
   dog_guest: { name: 'Piesek', badge: '3', kicker: 'GOŚĆ', rule: '3 PKT', category: 'guest', points: 3, description: 'Piesek daje 3 punkty.' },
   adoption_pet: { name: 'Adopcja', badge: 'KONIEC', kicker: 'NAJWIĘCEJ +6', rule: 'NAJMNIEJ −6', category: 'adoption', description: 'Na końcu gry najwięcej adopcji daje 6 punktów, a najmniej odbiera 6. W grze dwuosobowej nie ma punktów ujemnych.' },
   cream_topping: { name: 'Kremowa polewa', badge: '×3', kicker: 'NASTĘPNY GOŚĆ', rule: '×3 PUNKTY', category: 'special', description: 'Potraja wartość następnego zagranego gościa.' },
-  extra_paws: { name: 'Dodatkowe łapki', badge: '×2', kicker: 'W NASTĘPNEJ TURZE', rule: 'WYBIERZ 2 KARTY', category: 'special', description: 'W następnej turze wybierasz 2 karty, a tę kartę oddajesz z przekazywaną ręką.' }
+  extra_paws: { name: 'Dodatkowe łapki', badge: '×2', kicker: 'W NASTĘPNEJ TURZE', rule: 'WYBIERZ 2 KARTY', category: 'special', description: 'W następnej turze wybierasz 2 karty, a tę kartę oddajesz z przekazywaną ręką.' },
+  cone_race: { name: 'Rożek waflowy', badge: '↕', kicker: 'NAJWIĘCEJ +4', rule: 'NAJMNIEJ −4', category: 'race', description: 'Najwięcej rożków daje 4 punkty, a najmniej odbiera 4. Bez kary w grze dwuosobowej.' },
+  tray_race_1: { name: 'Taca ekspresowa', badge: '1', kicker: 'WYŚCIG DO 10', rule: '1./2./3. = 8/5/2', category: 'race', description: 'Liczy się jako 1 ciastko. Kto pierwszy zbierze 10, zdobywa 8 punktów; kolejne miejsca 5 i 2.' },
+  tray_race_2: { name: 'Taca ekspresowa', badge: '2', kicker: 'WYŚCIG DO 10', rule: '1./2./3. = 8/5/2', category: 'race', description: 'Liczy się jako 2 ciastka. Kto pierwszy zbierze 10, zdobywa 8 punktów; kolejne miejsca 5 i 2.' },
+  tray_race_3: { name: 'Taca ekspresowa', badge: '3', kicker: 'WYŚCIG DO 10', rule: '1./2./3. = 8/5/2', category: 'race', description: 'Liczy się jako 3 ciastka. Kto pierwszy zbierze 10, zdobywa 8 punktów; kolejne miejsca 5 i 2.' },
+  caramel_twist: { name: 'Karmelki', badge: '2+', kicker: '1 = −3 PKT', rule: '2+ = 7 PKT', category: 'appetizer', description: 'Jeden karmelek odbiera 3 punkty. Dwa lub więcej dają 7 punktów.' },
+  cheesecake: { name: 'Serniczki', badge: '1·2·3', kicker: 'ILE → PUNKTY', ladder: [['1', '2', '3+'], ['2', '6', '0']], category: 'appetizer', description: 'Jeden serniczek daje 2 punkty, dwa dają 6, ale trzy lub więcej dają 0.' },
+  sandwich_circle: { name: 'Kanapka', badge: '●', kicker: 'RÓŻNE → PUNKTY', ladder: [['1', '2', '3', '4'], ['1', '4', '9', '16']], category: 'shape', description: 'Twórz zestawy różnych kształtów. Zestaw 1, 2, 3 lub 4 kształtów daje 1, 4, 9 lub 16 punktów.' },
+  sandwich_triangle: { name: 'Kanapka', badge: '▲', kicker: 'RÓŻNE → PUNKTY', ladder: [['1', '2', '3', '4'], ['1', '4', '9', '16']], category: 'shape', description: 'Twórz zestawy różnych kształtów. Zestaw 1, 2, 3 lub 4 kształtów daje 1, 4, 9 lub 16 punktów.' },
+  sandwich_square: { name: 'Kanapka', badge: '■', kicker: 'RÓŻNE → PUNKTY', ladder: [['1', '2', '3', '4'], ['1', '4', '9', '16']], category: 'shape', description: 'Twórz zestawy różnych kształtów. Zestaw 1, 2, 3 lub 4 kształtów daje 1, 4, 9 lub 16 punktów.' },
+  sandwich_rectangle: { name: 'Kanapka', badge: '▬', kicker: 'RÓŻNE → PUNKTY', ladder: [['1', '2', '3', '4'], ['1', '4', '9', '16']], category: 'shape', description: 'Twórz zestawy różnych kształtów. Zestaw 1, 2, 3 lub 4 kształtów daje 1, 4, 9 lub 16 punktów.' },
+  shared_sprinkles: { name: 'Wspólna posypka', badge: '×', kicker: 'ZA KAŻDEGO RYWALA', rule: 'Z POSYPKĄ +1 · MAX 4', category: 'appetizer', description: 'Każda posypka daje po 1 punkcie za każdego rywala, który też ma posypkę, maksymalnie 4.' },
+  soup_special: { name: 'Zupa dnia', badge: '3', kicker: 'TYLKO JEDNA W TURZE', rule: '3 PKT · 2+ = ODRZUĆ', category: 'appetizer', description: 'Daje 3 punkty, jeśli nikt inny nie zagra zupy w tej samej turze. W przeciwnym razie wszystkie zupy przepadają.' },
+  loyalty_card: { name: 'Stały gość', badge: '4', kicker: 'NAJWIĘCEJ RODZAJÓW', rule: 'KAŻDA = 4 PKT', category: 'special', description: 'Każda karta daje 4 punkty, jeśli masz najwięcej różnych rodzin kart.' },
+  tea_pot: { name: 'Dzbanek herbaty', badge: '×', kicker: 'NAJWIĘKSZY ZESTAW', rule: '1 PKT ZA KARTĘ', category: 'special', description: 'Każdy dzbanek daje tyle punktów, ile kart ma twój największy zestaw jednego rodzaju.' },
+  menu_card: { name: 'Menu dnia', badge: '4→1', kicker: 'DOBIERZ 4 KARTY', rule: 'WYBIERZ 1', category: 'special', description: 'Dobierz 4 karty z pozostałej talii, wybierz jedną, a resztę zwróć.' },
+  silver_spoon: { name: 'Srebrna łyżeczka', badge: '↔', kicker: 'POPROŚ O KARTĘ', rule: 'ODDAJ ŁYŻECZKĘ', category: 'special', description: 'W późniejszej turze poproś o rodzinę kart. Pierwszy gracz po lewej, który ją ma, wymienia ją na łyżeczkę.' },
+  special_order: { name: 'Specjalne zamówienie', badge: '⧉', kicker: 'KOPIUJE TWOJĄ', rule: 'ZAGRANĄ KARTĘ', category: 'special', description: 'Kopiuje dowolną kartę, którą masz już przed sobą.' },
+  takeout_box: { name: 'Pudełko na wynos', badge: '2', kicker: 'ODWRÓĆ KARTY', rule: 'KAŻDA = 2 PKT', category: 'special', description: 'Odwróć dowolne wcześniej zagrane karty. Każda z nich będzie warta 2 punkty.' },
+  icecream_cake: { name: 'Tort lodowy', badge: 'KONIEC', kicker: 'ZBIERZ CZWÓRKĘ', rule: '×4 = 12 PKT', category: 'dessert', description: 'Na końcu gry każdy zestaw 4 tortów lodowych daje 12 punktów.' },
+  fruit_basket: { name: 'Owocowy koszyk', badge: '🍓', kicker: 'KAŻDY OWOC: ILE → PKT', ladder: [['0', '1', '2', '3', '4', '5+'], ['−2', '0', '1', '3', '6', '10']], category: 'dessert', description: 'Na końcu gry każdy z trzech owoców punktuje osobno: 0, 1, 2, 3, 4 lub 5 sztuk daje −2, 0, 1, 3, 6 lub 10 punktów.' }
 });
 
 export function escapeHTML(value = '') {
@@ -63,7 +83,7 @@ function resolveCardType(card) { return typeof card === 'string' ? card : card?.
 function renderCardRule(meta) {
   if (meta.ladder) {
     const [counts, points] = meta.ladder;
-    return `<span class="card-ladder" aria-hidden="true"><span>${counts.map(value => `<b>${escapeHTML(value)}</b>`).join('')}</span><span>${points.map(value => `<strong>${escapeHTML(value)}</strong>`).join('')}</span></span>`;
+    return `${meta.kicker ? `<span class="card-rule-kicker">${escapeHTML(meta.kicker)}</span>` : ''}<span class="card-ladder" style="--ladder-cols:${counts.length}" aria-hidden="true"><span>${counts.map(value => `<b>${escapeHTML(value)}</b>`).join('')}</span><span>${points.map(value => `<strong>${escapeHTML(value)}</strong>`).join('')}</span></span>`;
   }
   return `<span class="card-rule-kicker">${escapeHTML(meta.kicker)}</span><strong class="card-rule-main">${escapeHTML(meta.rule)}</strong>`;
 }
@@ -74,6 +94,10 @@ export function createCard(card, options = {}) {
   const selectable = options.selectable !== false;
   const element = document.createElement(selectable ? 'button' : 'article');
   const cardId = typeof card === 'object' ? card.id : '';
+  const fruitIcons = { berry: '🍓', melon: '🍉', orange: '🍊' };
+  const dynamicBadge = typeof card === 'object' && Array.isArray(card.fruits)
+    ? card.fruits.map((fruit) => fruitIcons[fruit] ?? '●').join('')
+    : meta.badge;
   element.className = `game-card card-${meta.category}${options.compact ? ' is-compact' : ''}${options.selected ? ' is-selected' : ''}${options.disabled ? ' is-disabled' : ''}`;
   element.dataset.cardType = type || 'unknown';
   if (cardId) element.dataset.cardId = cardId;
@@ -83,8 +107,9 @@ export function createCard(card, options = {}) {
     element.setAttribute('aria-pressed', String(Boolean(options.selected)));
     element.disabled = Boolean(options.disabled);
   }
-  element.innerHTML = `<span class="card-picture">${getCardArt(type)}<span class="card-value-badge" aria-hidden="true">${escapeHTML(meta.badge)}</span></span><span class="card-info"><span class="card-name">${escapeHTML(meta.name)}</span><span class="card-rule">${renderCardRule(meta)}</span></span><span class="card-check">${icon('check')}</span>`;
-  element.setAttribute('aria-label', `${meta.name}. ${meta.description}${options.selected ? '. Wybrana' : ''}`);
+  element.innerHTML = `<span class="card-picture">${getCardArt(type)}<span class="card-value-badge" aria-hidden="true">${escapeHTML(dynamicBadge)}</span></span><span class="card-info"><span class="card-name">${escapeHTML(meta.name)}</span><span class="card-rule">${renderCardRule(meta)}</span></span><span class="card-check">${icon('check')}</span>`;
+  const copied = typeof card === 'object' && card.copiedType ? ` Kopiuje: ${CARD_PRESENTATION[card.copiedType]?.name ?? card.copiedType}.` : '';
+  element.setAttribute('aria-label', `${meta.name}. ${meta.description}${copied}${card?.flipped ? ' Odwrócona, warta 2 punkty.' : ''}${options.selected ? '. Wybrana' : ''}`);
   element.title = meta.description;
   return element;
 }

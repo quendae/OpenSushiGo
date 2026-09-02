@@ -1,6 +1,7 @@
 import {
   createGame,
   dispatchAction,
+  dispatchSpecialAction,
   getPlayerView,
   scoreRound,
 } from './core.js';
@@ -17,8 +18,9 @@ import {
   closeDialog,
   showToast,
 } from './ui.js';
+import { sound } from './sound.js';
 
-const BOT_NAMES = ['Mokka', 'Kruszonka', 'Pestka', 'Pianka'];
+const BOT_NAMES = ['Mokka', 'Kruszonka', 'Pestka', 'Pianka', 'Karmel', 'Biszkopt', 'Trufla'];
 const SIGNALING_KEY = 'puchate-cafe-signaling-url';
 
 const app = {
@@ -28,12 +30,16 @@ const app = {
   localSeat: 0,
   selectedIds: [],
   useExtraPaws: false,
+  useSpoon: false,
+  requestedType: '',
+  tableauTargetIds: [],
   multiplayer: null,
   lobby: null,
   config: null,
   lastRound: 1,
   shownFinal: false,
   busy: false,
+  lastEventSeq: -1,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -46,7 +52,7 @@ function randomSeed() {
 function playerConfig(name, count, difficulty) {
   return Array.from({ length: count }, (_, seat) => seat === 0
     ? { id: 'local', name, kind: 'human' }
-    : { id: `bot-${seat}`, name: BOT_NAMES[seat - 1], kind: 'bot', difficulty });
+    : { id: `bot-${seat}`, name: BOT_NAMES[(seat - 1) % BOT_NAMES.length], kind: 'bot', difficulty });
 }
 
 function normalizeDifficulty(value) {
@@ -55,6 +61,7 @@ function normalizeDifficulty(value) {
 
 function showError(error) {
   console.error(error);
+  void sound.play('error');
   const messages = {
     INVALID_SIGNALING_URL: 'Podaj prawidłowy adres serwera pokoju.',
     INVALID_ROOM: 'Kod pokoju powinien mieć sześć znaków.',
@@ -70,6 +77,36 @@ function syncPlayerCountControls(source) {
   const select = byId('player-count');
   if (select && select !== source) select.value = value;
   document.querySelectorAll('input[name="playerCount"]').forEach((radio) => { radio.checked = radio.value === value; });
+  updatePartyMenuCompatibility('local');
+}
+
+const PARTY_MENU_LIMITS = Object.freeze({
+  sampler: [2, 6],
+  clever: [3, 6],
+  lively: [3, 8],
+  cozy: [2, 8],
+});
+
+const PARTY_MENU_HELP = Object.freeze({
+  sampler: 'Łatwe na start: rożki, serniczki, Menu dnia i tort lodowy.',
+  clever: 'Więcej planowania: tace, kanapki, posypka i kopiowanie zamówień.',
+  lively: 'Dużo interakcji: karmelki, zupa, lojalność i srebrna łyżeczka.',
+  cozy: 'Spokojne, czytelne menu odpowiednie także dla 2 oraz 7–8 graczy.',
+});
+
+function updatePartyMenuCompatibility(scope = 'local') {
+  const local = scope === 'local';
+  const select = byId(local ? 'party-menu' : 'host-party-menu');
+  const count = local
+    ? Number(document.querySelector('input[name="playerCount"]:checked')?.value ?? byId('player-count')?.value ?? 3)
+    : Number(byId('host-player-count')?.value ?? 3);
+  if (!select) return;
+  [...select.options].forEach((option) => {
+    const [minimum, maximum] = PARTY_MENU_LIMITS[option.value] ?? [2, 8];
+    option.disabled = count < minimum || count > maximum;
+  });
+  if (select.selectedOptions[0]?.disabled) select.value = 'cozy';
+  if (local) byId('party-menu-description').textContent = PARTY_MENU_HELP[select.value];
 }
 
 function startLocalGame(config = app.config) {
@@ -83,6 +120,10 @@ function startLocalGame(config = app.config) {
   app.shownFinal = false;
   app.selectedIds = [];
   app.useExtraPaws = false;
+  app.useSpoon = false;
+  app.requestedType = '';
+  app.tableauTargetIds = [];
+  app.lastEventSeq = -1;
   setScreen('game');
   updateFromState();
 }
@@ -101,10 +142,19 @@ function updateFromView(view) {
 }
 
 function handleMilestone(view) {
+  const newest = view.events?.at(-1);
+  if (newest && newest.seq > app.lastEventSeq) {
+    const previous = app.lastEventSeq;
+    app.lastEventSeq = newest.seq;
+    if (previous >= 0 && newest.type === 'cards_revealed') void sound.play('reveal');
+    else if (newest.type === 'menu_choice_started') void sound.play('menu');
+    else if (newest.type === 'soups_discarded') void sound.play('error');
+  }
   if (view.phase === 'game_over') {
     if (!app.shownFinal) {
       app.shownFinal = true;
       fillFinalDialog(view);
+      void sound.play('victory');
       window.setTimeout(() => openDialog('final-dialog'), 350);
     }
     return;
@@ -113,6 +163,7 @@ function handleMilestone(view) {
     const completedRound = view.round - 1;
     app.lastRound = view.round;
     fillRoundDialog(view, completedRound);
+    void sound.play('round');
     window.setTimeout(() => openDialog('round-dialog'), 300);
   }
 }
@@ -125,7 +176,12 @@ function renderGame(view) {
     app.handSignature = handSignature;
     app.selectedIds = [];
     app.useExtraPaws = false;
+    app.useSpoon = false;
+    app.requestedType = '';
+    app.tableauTargetIds = [];
   }
+
+  document.body.dataset.gameVariant = view.variant ?? 'classic';
 
   byId('round-label').textContent = `Runda ${view.round} z ${view.totalRounds}`;
   document.querySelectorAll('.round-progress i').forEach((dot, index) => dot.classList.toggle('is-filled', index < view.round));
@@ -133,7 +189,9 @@ function renderGame(view) {
   byId('hand-count').textContent = `${view.me.handCount} ${view.me.handCount === 1 ? 'karta' : view.me.handCount < 5 ? 'karty' : 'kart'}`;
 
   const status = byId('turn-status');
-  status.innerHTML = ownLocked
+  status.innerHTML = view.phase === 'special_action'
+    ? (view.specialChoice && !view.specialChoice.chosen ? `${icon('sparkle')} Wybierz z menu` : `${icon('check')} Czekamy na wybór z menu`)
+    : ownLocked
     ? `${icon('check')} Wybór zapisany — czekamy`
     : `${icon('sparkle')} Wybierz kartę`;
   status.classList.toggle('is-locked', ownLocked);
@@ -152,9 +210,23 @@ function renderGame(view) {
     }));
 
   const tableau = byId('tableau');
-  const cards = [...(view.me.playedThisRound ?? []), ...(view.me.adoptionPets ?? [])];
+  const dessertCards = view.me.desserts ?? view.me.adoptionPets ?? [];
+  const cards = [...(view.me.playedThisRound ?? []), ...dessertCards];
+  const selectedHandCard = view.me.hand?.find((card) => app.selectedIds.includes(card.id));
+  const targetsTableau = selectedHandCard?.type === 'special_order' || selectedHandCard?.type === 'takeout_box';
   if (cards.length) {
-    tableau.replaceChildren(...cards.map((card) => createCard(card, { selectable: false, compact: true })));
+    tableau.replaceChildren(...cards.map((card, index) => {
+      const canTarget = targetsTableau && !card.endGameScoring && !card.flipped;
+      const element = createCard(card, {
+        selectable: canTarget,
+        compact: true,
+        action: 'tableau-card',
+        selected: app.tableauTargetIds.includes(card.id),
+      });
+      element.style.setProperty('--card-index', index);
+      if (card.flipped) element.classList.add('is-flipped');
+      return element;
+    }));
   } else {
     tableau.innerHTML = '<p class="empty-tableau">Zagrane karty pojawią się tutaj</p>';
   }
@@ -163,21 +235,85 @@ function renderGame(view) {
 
   const hand = byId('hand');
   const disabled = ownLocked || view.phase !== 'draft';
-  hand.replaceChildren(...(view.me.hand ?? []).map((card) => createCard(card, {
-    selected: app.selectedIds.includes(card.id),
-    disabled,
-  })));
+  hand.replaceChildren(...(view.me.hand ?? []).map((card, index) => {
+    const element = createCard(card, { selected: app.selectedIds.includes(card.id), disabled });
+    element.style.setProperty('--card-index', index);
+    return element;
+  }));
 
   const canUsePaws = (view.legalActions ?? []).some((action) => action.useExtraPaws);
   renderPawsControl(canUsePaws, disabled);
+  const canUseSpoon = (view.legalActions ?? []).some((action) => action.useSpoon);
+  renderSpoonControl(canUseSpoon, disabled, view);
   const required = app.useExtraPaws ? 2 : 1;
   const confirm = byId('confirm-card');
-  confirm.disabled = disabled || app.selectedIds.length !== required;
+  const targetReady = selectedHandCard?.type === 'special_order'
+    ? (cards.filter((card) => !card.endGameScoring && !card.flipped).length === 0 || app.tableauTargetIds.length === 1)
+    : true;
+  const spoonReady = !app.useSpoon || Boolean(app.requestedType);
+  confirm.disabled = disabled || app.selectedIds.length !== required || !targetReady || !spoonReady;
   confirm.innerHTML = `${icon('check')} ${app.useExtraPaws ? 'Zagraj dwie karty' : 'Zagraj kartę'}`;
   byId('hand-title').textContent = app.useExtraPaws ? 'Wybierz dwie karty po kolei' : 'Wybierz jedną kartę';
-  byId('selection-hint').innerHTML = app.useExtraPaws
+  byId('selection-hint').innerHTML = selectedHandCard?.type === 'special_order'
+    ? `${icon('info')} Wskaż jedną ze swoich zagranych kart do skopiowania.`
+    : selectedHandCard?.type === 'takeout_box'
+      ? `${icon('info')} Wskaż dowolne karty na stole — po odwróceniu każda będzie warta 2 punkty.`
+      : app.useSpoon
+        ? `${icon('info')} Wybierz rodzinę, o którą poprosisz pierwszego gracza po lewej.`
+        : app.useExtraPaws
     ? `${icon('info')} Kolejność ma znaczenie: pierwsza Polewa może wzmocnić drugiego Gościa.`
     : `${icon('info')} Wybór zostanie odkryty dopiero, gdy wszyscy będą gotowi.`;
+
+  renderMenuChoice(view);
+}
+
+function activeMenuFamilies(view) {
+  const menu = view.partyMenu;
+  if (!menu) return [];
+  return ['bunny_guest', 'cat_guest', 'dog_guest', menu.roll, ...menu.appetizers, ...menu.specials, menu.dessert]
+    .filter((value) => value !== 'silver_spoon');
+}
+
+function familyLabel(value) {
+  const labels = {
+    drink: 'Kakao', tray_race: 'Taca ekspresowa', sandwich: 'Kanapka', cone_race: 'Rożek waflowy',
+    cookie_set: 'Ciasteczka', afternoon_set: 'Podwieczorek', sweet_bun: 'Bułeczki', caramel_twist: 'Karmelki',
+    cheesecake: 'Serniczki', shared_sprinkles: 'Wspólna posypka', soup_special: 'Zupa dnia', cream_topping: 'Kremowa polewa',
+    extra_paws: 'Dodatkowe łapki', loyalty_card: 'Stały gość', tea_pot: 'Dzbanek herbaty', menu_card: 'Menu dnia',
+    special_order: 'Specjalne zamówienie', takeout_box: 'Pudełko na wynos', icecream_cake: 'Tort lodowy',
+    fruit_basket: 'Owocowy koszyk', adoption_pet: 'Adopcja', bunny_guest: 'Króliczek', cat_guest: 'Kotek', dog_guest: 'Piesek',
+  };
+  return labels[value] ?? CARD_PRESENTATION[value]?.name ?? value;
+}
+
+function renderSpoonControl(available, disabled, view) {
+  let wrap = byId('spoon-control');
+  if (!available) {
+    wrap?.remove();
+    app.useSpoon = false;
+    app.requestedType = '';
+    return;
+  }
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'spoon-control';
+    wrap.className = 'bonus-control';
+    document.querySelector('.hand-actions')?.prepend(wrap);
+  }
+  const families = activeMenuFamilies(view);
+  wrap.innerHTML = `<button type="button" class="soft-button${app.useSpoon ? ' is-active' : ''}" data-action="toggle-spoon" aria-pressed="${app.useSpoon}">${icon('sparkle')} ${app.useSpoon ? 'Łyżeczka aktywna' : 'Użyj łyżeczki'}</button>${app.useSpoon ? `<select id="spoon-request" aria-label="Poproś o rodzinę kart"><option value="">Wybierz kartę…</option>${families.map((family) => `<option value="${escapeHTML(family)}"${app.requestedType === family ? ' selected' : ''}>${escapeHTML(familyLabel(family))}</option>`).join('')}</select>` : ''}`;
+  wrap.querySelector('button').disabled = disabled;
+}
+
+function renderMenuChoice(view) {
+  const dialog = byId('menu-dialog');
+  if (view.phase !== 'special_action' || !view.specialChoice || view.specialChoice.chosen) {
+    if (dialog?.open) closeDialog(dialog);
+    return;
+  }
+  const options = byId('menu-options');
+  options.replaceChildren(...view.specialChoice.options.map((card) => createCard(card, { action: 'choose-menu-card' })));
+  if (!dialog.open) openDialog(dialog);
 }
 
 function renderPawsControl(available, disabled) {
@@ -212,15 +348,38 @@ function toggleCard(cardId) {
     if (app.selectedIds.length >= limit) app.selectedIds.shift();
     app.selectedIds.push(cardId);
   }
+  app.tableauTargetIds = [];
+  void sound.play('select');
+  renderGame(app.view);
+}
+
+function toggleTableauTarget(cardId) {
+  const selected = app.view?.me?.hand?.find((card) => app.selectedIds.includes(card.id));
+  if (!selected || !['special_order', 'takeout_box'].includes(selected.type)) return;
+  const index = app.tableauTargetIds.indexOf(cardId);
+  if (index >= 0) app.tableauTargetIds.splice(index, 1);
+  else {
+    if (selected.type === 'special_order') app.tableauTargetIds = [];
+    app.tableauTargetIds.push(cardId);
+  }
+  void sound.play('select');
   renderGame(app.view);
 }
 
 function selectedAction() {
   const actions = app.view?.legalActions ?? [];
-  return actions.find((action) => {
+  const base = actions.find((action) => {
     if (Boolean(action.useExtraPaws) !== app.useExtraPaws) return false;
+    if (Boolean(action.useSpoon) !== app.useSpoon) return false;
     return action.cardIds.length === app.selectedIds.length && action.cardIds.every((id, index) => id === app.selectedIds[index]);
   });
+  if (!base) return null;
+  const action = { ...base };
+  if (app.useSpoon) action.requestedType = app.requestedType;
+  const selected = app.view.me.hand.find((card) => card.id === app.selectedIds[0]);
+  if (selected?.type === 'special_order' && app.tableauTargetIds[0]) action.specialOrderTargetId = app.tableauTargetIds[0];
+  if (selected?.type === 'takeout_box') action.takeoutTargetIds = [...app.tableauTargetIds];
+  return action;
 }
 
 async function commitSelection() {
@@ -232,6 +391,7 @@ async function commitSelection() {
   }
   app.busy = true;
   try {
+    void sound.play('confirm');
     if (app.mode === 'local') {
       app.state = dispatchAction(app.state, 0, action);
       updateFromState();
@@ -248,15 +408,34 @@ async function commitSelection() {
 }
 
 async function runHostBots() {
-  if (!app.state || app.state.phase !== 'draft') return;
+  if (!app.state || !['draft', 'special_action'].includes(app.state.phase)) return;
   const bots = app.state.players.filter((player) => player.kind === 'bot');
   for (const bot of bots) {
-    if (app.state.phase !== 'draft' || app.state.pendingSelections[String(bot.seat)]) continue;
+    if (!['draft', 'special_action'].includes(app.state.phase)) break;
+    if (app.state.phase === 'draft' && app.state.pendingSelections[String(bot.seat)]) continue;
     const view = getPlayerView(app.state, bot.seat);
     const action = chooseBotAction(view, bot.difficulty);
-    if (action) app.state = dispatchAction(app.state, bot.seat, action);
+    if (action) app.state = action.type === 'choose_menu_card'
+      ? dispatchSpecialAction(app.state, bot.seat, action)
+      : dispatchAction(app.state, bot.seat, action);
   }
   updateFromState();
+}
+
+async function chooseMenuCard(cardId) {
+  if (app.busy || !cardId) return;
+  app.busy = true;
+  try {
+    void sound.play('confirm');
+    const action = { type: 'choose_menu_card', cardId };
+    if (app.mode === 'local') {
+      app.state = dispatchSpecialAction(app.state, app.localSeat, action);
+      closeDialog('menu-dialog');
+      await runHostBots();
+      updateFromState();
+    } else app.multiplayer?.sendAction('choose_menu_card', action);
+  } catch (error) { showError(error); }
+  finally { app.busy = false; }
 }
 
 function fillRoundDialog(view, roundNumber) {
@@ -265,8 +444,13 @@ function fillRoundDialog(view, roundNumber) {
   byId('round-result-title').textContent = `Podsumowanie rundy ${roundNumber}`;
   byId('round-winner').innerHTML = `<span class="avatar avatar-bunny">${escapeHTML(winner.player.name.charAt(0))}</span><div><small>Gwiazda rundy</small><strong>${escapeHTML(winner.player.name)}</strong></div><b>+${winner.result.total} ${icon('heart')}</b>`;
   const own = scored.find((entry) => entry.player.seat === view.seat)?.result ?? {};
-  const labels = [['cookies', 'Ciasteczka'], ['afternoonSets', 'Podwieczorki'], ['sweetBuns', 'Bułeczki'], ['guests', 'Goście'], ['creamTopping', 'Polewa'], ['drinks', 'Napoje']];
-  byId('round-breakdown').innerHTML = labels.map(([key, label]) => `<div><span>${escapeHTML(label)}</span><strong>+${Number(own[key] ?? 0)}</strong></div>`).join('');
+  const labels = view.variant === 'party'
+    ? [['sets', 'Zestawy'], ['guests', 'Goście i polewy'], ['drinks', 'Kakao'], ['coneRace', 'Rożki'], ['trayRace', 'Tace ekspresowe'], ['caramel', 'Karmelki'], ['cheesecake', 'Serniczki'], ['sandwiches', 'Kanapki'], ['sprinkles', 'Posypki'], ['soup', 'Zupy'], ['loyalty', 'Stali goście'], ['tea', 'Herbata'], ['takeout', 'Na wynos']]
+    : [['cookies', 'Ciasteczka'], ['afternoonSets', 'Podwieczorki'], ['sweetBuns', 'Bułeczki'], ['guests', 'Goście'], ['creamTopping', 'Polewa'], ['drinks', 'Napoje']];
+  byId('round-breakdown').innerHTML = labels.filter(([key]) => Number(own[key] ?? 0) !== 0).map(([key, label]) => {
+    const value = Number(own[key] ?? 0);
+    return `<div><span>${escapeHTML(label)}</span><strong>${value >= 0 ? '+' : ''}${value}</strong></div>`;
+  }).join('') || '<div><span>Ta runda</span><strong>0</strong></div>';
   byId('round-ranking').innerHTML = [...scored].sort((a, b) => b.player.score - a.player.score).map((entry, index) => `<div><span>${index + 1}</span><strong>${escapeHTML(entry.player.name)}</strong><b>${entry.player.score} ${icon('heart')}</b></div>`).join('');
 }
 
@@ -278,7 +462,12 @@ function fillFinalDialog(view) {
   byId('final-title').textContent = winners.length > 1 ? 'Wspólne zwycięstwo!' : `${winners[0].name} wygrywa!`;
   byId('final-subtitle').textContent = `Najlepsza kawiarnia zdobyła ${result.winningScore} serduszek.`;
   byId('final-podium').innerHTML = ranking.slice(0, 3).map((entry, index) => `<article class="podium-place podium-${index + 1}"><span>${index + 1}</span><strong>${escapeHTML(entry.name)}</strong><b>${entry.total} ${icon('heart')}</b></article>`).join('');
-  byId('final-ranking').innerHTML = ranking.map((entry, index) => `<div><span>${index + 1}</span><strong>${escapeHTML(entry.name)}</strong><small>Adopcje: ${entry.adoptionPets} (${entry.adoptionPoints >= 0 ? '+' : ''}${entry.adoptionPoints})</small><b>${entry.total} ${icon('heart')}</b></div>`).join('');
+  byId('final-ranking').innerHTML = ranking.map((entry, index) => {
+    const detail = view.variant === 'party'
+      ? `Desery: ${entry.dessertCount} · premia ${entry.adoptionPoints + entry.icecream + entry.fruit >= 0 ? '+' : ''}${entry.adoptionPoints + entry.icecream + entry.fruit}`
+      : `Adopcje: ${entry.adoptionPets} (${entry.adoptionPoints >= 0 ? '+' : ''}${entry.adoptionPoints})`;
+    return `<div><span>${index + 1}</span><strong>${escapeHTML(entry.name)}</strong><small>${escapeHTML(detail)}</small><b>${entry.total} ${icon('heart')}</b></div>`;
+  }).join('');
 }
 
 function signalingUrl() {
@@ -305,8 +494,10 @@ function createOnlineSession(role) {
       }
     },
     onAction: async (request) => {
-      if (app.mode !== 'online-host' || request.action !== 'play_cards') throw new Error('Nieobsługiwana akcja.');
-      app.state = dispatchAction(app.state, request.seat, request.payload);
+      if (app.mode !== 'online-host' || !['play_cards', 'choose_menu_card'].includes(request.action)) throw new Error('Nieobsługiwana akcja.');
+      app.state = request.action === 'choose_menu_card'
+        ? dispatchSpecialAction(app.state, request.seat, request.payload)
+        : dispatchAction(app.state, request.seat, request.payload);
       await runHostBots();
       app.multiplayer.broadcastViews(app.state);
       updateFromState();
@@ -336,6 +527,10 @@ async function hostRoom(form) {
   const session = createOnlineSession('host');
   const name = byId('host-name').value.trim();
   const maxSeats = Number(byId('host-player-count').value);
+  app.onlineConfig = {
+    variant: byId('host-variant').value,
+    partyMenu: byId('host-party-menu').value,
+  };
   app.mode = 'online-host';
   app.localSeat = 0;
   setScreen('lobby');
@@ -407,7 +602,7 @@ function startOnlineGame() {
     kind: seat.kind === 'bot' ? 'bot' : 'human',
     difficulty: normalizeDifficulty(seat.difficulty),
   }));
-  app.state = createGame({ gameId: `room-${app.multiplayer.roomCode}`, seed: randomSeed(), players });
+  app.state = createGame({ gameId: `room-${app.multiplayer.roomCode}`, seed: randomSeed(), players, ...app.onlineConfig });
   app.localSeat = 0;
   app.lastRound = 1;
   app.shownFinal = false;
@@ -440,9 +635,20 @@ document.addEventListener('click', async (event) => {
   } else if (action === 'back-home' || action === 'home' || action === 'leave-lobby') goHome();
   else if (action === 'rules') openDialog('rules-dialog');
   else if (action === 'play-card') toggleCard(target.dataset.cardId);
+  else if (action === 'tableau-card') toggleTableauTarget(target.dataset.cardId);
+  else if (action === 'choose-menu-card') await chooseMenuCard(target.dataset.cardId);
   else if (action === 'toggle-paws') {
     app.useExtraPaws = !app.useExtraPaws;
+    app.useSpoon = false;
+    app.requestedType = '';
     app.selectedIds = app.selectedIds.slice(0, app.useExtraPaws ? 2 : 1);
+    renderGame(app.view);
+  } else if (action === 'toggle-spoon') {
+    app.useSpoon = !app.useSpoon;
+    app.useExtraPaws = false;
+    app.selectedIds = app.selectedIds.slice(0, 1);
+    app.requestedType = '';
+    void sound.play('select');
     renderGame(app.view);
   } else if (action === 'confirm-card') await commitSelection();
   else if (action === 'next-round') closeDialog('round-dialog');
@@ -455,11 +661,38 @@ document.addEventListener('click', async (event) => {
   } else if (action === 'fill-bots') fillLobbyBots();
   else if (action === 'start-multiplayer') startOnlineGame();
   else if (action === 'toggle-sound') {
-    const pressed = target.getAttribute('aria-pressed') !== 'false';
-    target.setAttribute('aria-pressed', String(!pressed));
-    showToast(pressed ? 'Dźwięki wyłączone.' : 'Dźwięki włączone.');
+    const muted = sound.toggle();
+    target.setAttribute('aria-pressed', String(!muted));
+    showToast(muted ? 'Dźwięki wyłączone.' : 'Dźwięki włączone.');
   }
 });
+
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'spoon-request') {
+    app.requestedType = event.target.value;
+    renderGame(app.view);
+  }
+});
+
+function updateVariantControls(variant, scope = 'local') {
+  const party = variant === 'party';
+  if (scope === 'local') {
+    byId('party-menu-field').hidden = !party;
+    document.querySelectorAll('#setup-form .party-player').forEach((node) => { node.hidden = !party; });
+    const checked = document.querySelector('input[name="playerCount"]:checked');
+    if (!party && Number(checked?.value) > 5) {
+      const fallback = document.querySelector('input[name="playerCount"][value="5"]');
+      fallback.checked = true;
+      syncPlayerCountControls(fallback);
+    }
+    updatePartyMenuCompatibility('local');
+  } else {
+    byId('host-party-menu').disabled = !party;
+    document.querySelectorAll('#host-player-count .party-player').forEach((node) => { node.hidden = !party; });
+    if (!party && Number(byId('host-player-count').value) > 5) byId('host-player-count').value = '5';
+    updatePartyMenuCompatibility('host');
+  }
+}
 
 byId('setup-form')?.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -468,12 +701,23 @@ byId('setup-form')?.addEventListener('submit', (event) => {
     name: byId('player-name').value.trim() || 'Barista',
     count: Number(checked?.value ?? byId('player-count').value),
     difficulty: normalizeDifficulty(byId('bot-difficulty').value),
+    variant: document.querySelector('input[name="gameVariant"]:checked')?.value ?? 'classic',
+    partyMenu: byId('party-menu').value,
   });
 });
 
 document.querySelectorAll('input[name="playerCount"]').forEach((radio) => radio.addEventListener('change', () => syncPlayerCountControls(radio)));
 byId('player-count')?.addEventListener('change', (event) => syncPlayerCountControls(event.target));
+byId('party-menu')?.addEventListener('change', () => updatePartyMenuCompatibility('local'));
+document.querySelectorAll('input[name="gameVariant"]').forEach((radio) => radio.addEventListener('change', () => updateVariantControls(radio.value, 'local')));
+byId('host-variant')?.addEventListener('change', (event) => updateVariantControls(event.target.value, 'host'));
+byId('host-player-count')?.addEventListener('change', () => updatePartyMenuCompatibility('host'));
+byId('host-party-menu')?.addEventListener('change', () => updatePartyMenuCompatibility('host'));
 byId('host-form')?.addEventListener('submit', (event) => { event.preventDefault(); void hostRoom(event.currentTarget); });
 byId('join-form')?.addEventListener('submit', (event) => { event.preventDefault(); void joinRoom(); });
 
+const soundToggle = document.querySelector('[data-action="toggle-sound"]');
+soundToggle?.setAttribute('aria-pressed', String(!sound.muted));
+updateVariantControls('classic', 'local');
+updateVariantControls('classic', 'host');
 setScreen('home');

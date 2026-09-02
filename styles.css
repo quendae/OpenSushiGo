@@ -215,3 +215,87 @@ p { color: var(--muted); }
 /* Keep native dialogs centered in the viewport even when the game page is scrolled. */
 .game-dialog,
 .game-dialog.result-dialog { position: fixed; inset: 0; margin: auto; }
+
+/* Premium motion and Party-mode polish. */
+.variant-control { grid-template-columns: 1fr 1fr; }
+.variant-control label span { padding-inline: .55rem; }
+.party-menu-field { padding: .75rem; background: linear-gradient(135deg, #fff2cf, #f8e5f0); border: 1px solid #e8c68d; border-radius: 15px; }
+.party-menu-field label { display: block; margin-bottom: .35rem; }
+.party-rules-note { margin-top: .7rem; padding: .8rem; background: linear-gradient(135deg, #e4f4ef, #eee8fa); border: 1px solid #bddbd1; border-radius: 14px; }
+.party-rules-note p { margin: .2rem 0 0; font-size: .78rem; }
+
+.primary-button { position: relative; isolation: isolate; overflow: hidden; box-shadow: 0 4px 0 #6f3735, 0 12px 24px rgba(136,61,55,.18); transition: translate .18s ease, box-shadow .18s ease, filter .18s ease; }
+.primary-button::after { content: ''; position: absolute; z-index: -1; inset: -100% -30%; background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.38) 48%, transparent 58%); translate: -60% 0; transition: translate .55s ease; }
+.primary-button:hover::after { translate: 60% 0; }.primary-button:active { translate: 0 3px; box-shadow: 0 1px 0 #6f3735, 0 6px 13px rgba(136,61,55,.16); }
+.soft-button, .secondary-button, .icon-button { transition: translate .16s ease, box-shadow .16s ease, background-color .16s ease; }
+.soft-button:active, .secondary-button:active, .icon-button:active { translate: 0 2px; }
+
+.game-card { isolation: isolate; animation: card-deal .48s cubic-bezier(.2,.85,.25,1.15) both; animation-delay: calc(var(--card-index, 0) * 38ms); will-change: transform, translate; }
+.game-card::after { content: ''; position: absolute; z-index: 2; inset: -40% -80%; pointer-events: none; background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,.33) 49%, transparent 58%); translate: -45% 0; rotate: 8deg; transition: translate .65s ease; }
+.game-card:not(:disabled):hover::after, .game-card.is-selected::after { translate: 48% 0; }
+.game-card.is-selected { animation: selected-glow 1.8s ease-in-out infinite; }
+.game-card.is-compact { animation-name: card-land; animation-duration: .4s; }
+.game-card.is-compact.is-selected { outline: 3px solid var(--mint-dark); outline-offset: 2px; }
+.game-card.is-flipped { --card-accent: #65aa9f; background: #65aa9f; }
+.game-card.is-flipped .card-picture { background: repeating-linear-gradient(45deg,#65aa9f 0 12px,#78bbb0 12px 24px); }
+.game-card.is-flipped .card-picture::after { content: '♥'; position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.88); font: 900 1.6rem var(--font-display); }
+.game-card.is-flipped .card-art-image { opacity: 0; }.game-card.is-flipped .card-info { display: none; }
+
+.game-card[data-card-type="cone_race"] { --card-accent: #ef8f75; }
+.game-card[data-card-type^="tray_race_"] { --card-accent: #8499dc; }
+.game-card[data-card-type="caramel_twist"] { --card-accent: #dfa24a; }
+.game-card[data-card-type="cheesecake"] { --card-accent: #8fcfbd; }
+.game-card[data-card-type^="sandwich_"] { --card-accent: #b79ad7; }
+.game-card[data-card-type="shared_sprinkles"] { --card-accent: #b8d847; }
+.game-card[data-card-type="soup_special"] { --card-accent: #d68da4; }
+.game-card[data-card-type="loyalty_card"] { --card-accent: #3fa9a2; }
+.game-card[data-card-type="tea_pot"] { --card-accent: #8ebbd6; }
+.game-card[data-card-type="menu_card"] { --card-accent: #efbb48; }
+.game-card[data-card-type="silver_spoon"] { --card-accent: #e88d6d; }
+.game-card[data-card-type="special_order"] { --card-accent: #a687c7; }
+.game-card[data-card-type="takeout_box"] { --card-accent: #efaa83; }
+.game-card[data-card-type="icecream_cake"] { --card-accent: #62c5c4; }
+.game-card[data-card-type="fruit_basket"] { --card-accent: #9fc953; }
+.game-card[data-card-type^="tray_race_"] .card-rule-main,
+.game-card[data-card-type^="sandwich_"] .card-rule-main,
+.game-card[data-card-type="shared_sprinkles"] .card-rule-main,
+.game-card[data-card-type="fruit_basket"] .card-rule-main { font-size: .53rem; white-space: normal; }
+.game-card[data-card-type="fruit_basket"] .card-rule-kicker { font-size: .42rem; }
+.card-ladder > span { grid-template-columns: repeat(var(--ladder-cols, 5), 1fr); }
+.game-card[data-card-type="fruit_basket"] .card-ladder { font-size: .51rem; }
+.game-card[data-card-type="fruit_basket"] .card-ladder b { font-size: .43rem; }
+.game-card[data-card-type="fruit_basket"] .card-ladder strong { font-size: .57rem; }
+
+.bonus-control { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.bonus-control select { min-height: 42px; width: min(230px, 100%); padding-block: .45rem; }
+.soft-button.is-active { color: #245e55; background: #d8eee8; box-shadow: 0 0 0 2px #62a99b inset; }
+
+.menu-choice-dialog { width: min(calc(100% - 1rem), 780px); }
+.menu-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; justify-items: center; }
+.menu-options .game-card { width: 145px; min-width: 145px; }
+.menu-choice-dialog[open] { animation: dialog-pop .35s cubic-bezier(.2,.9,.2,1.1); }
+.menu-choice-dialog::backdrop { animation: backdrop-in .25s ease both; }
+
+.deck-stack { animation: deck-breathe 3s ease-in-out infinite; }
+.turn-status .ui-icon { animation: tiny-sparkle 1.7s ease-in-out infinite; }
+.score-chip strong { transition: scale .25s cubic-bezier(.2,.9,.2,1.2); }
+.confetti i { filter: drop-shadow(0 2px 1px rgba(70,45,40,.18)); }
+.result-dialog[open] { animation: dialog-pop .38s cubic-bezier(.2,.9,.2,1.12); }
+
+@keyframes card-deal { from { opacity: 0; translate: 0 24px; scale: .94; filter: blur(3px); } to { opacity: 1; translate: 0 0; scale: 1; filter: none; } }
+@keyframes card-land { from { opacity: 0; translate: 24px -12px; rotate: 5deg; scale: .82; } to { opacity: 1; translate: 0 0; rotate: 0; scale: 1; } }
+@keyframes selected-glow { 0%,100% { filter: drop-shadow(0 0 0 rgba(87,160,146,0)); } 50% { filter: drop-shadow(0 0 8px rgba(87,160,146,.5)); } }
+@keyframes dialog-pop { from { opacity: 0; scale: .92; translate: 0 12px; } to { opacity: 1; scale: 1; translate: 0 0; } }
+@keyframes backdrop-in { from { background: rgba(62,43,40,0); backdrop-filter: blur(0); } }
+@keyframes deck-breathe { 0%,100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -4px; rotate: 1deg; } }
+@keyframes tiny-sparkle { 0%,100% { scale: 1; rotate: 0; } 50% { scale: 1.13; rotate: 8deg; } }
+
+@media (min-width: 700px) {
+  .menu-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .variant-control { grid-template-columns: 1fr; }
+  .menu-options .game-card { width: 135px; min-width: 135px; }
+  .bonus-control { display: grid; grid-template-columns: 1fr; }
+}
