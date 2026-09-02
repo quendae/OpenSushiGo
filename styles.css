@@ -367,3 +367,228 @@ p { color: var(--muted); }
   .card-rule-kicker { font-size: .4rem; }
   .card-rule-main { font-size: .63rem; }
 }
+
+/* The shared tabletop stays airy; the player's café now forms a shelf above the hand. */
+.table-center {
+  min-height: clamp(92px, 15vh, 145px);
+  isolation: isolate;
+}
+.table-pattern {
+  width: min(88vw, 880px);
+  height: clamp(88px, 14vh, 138px);
+  background:
+    radial-gradient(ellipse at center, rgba(255,244,216,.22) 0 24%, transparent 25%),
+    repeating-radial-gradient(ellipse at center, transparent 0 23px, rgba(91,61,51,.035) 24px 25px);
+  border: 1.5px solid rgba(83,57,47,.18);
+  box-shadow: inset 0 0 34px rgba(255,250,231,.15), 0 10px 25px rgba(93,58,42,.08);
+}
+.table-pattern::before,
+.table-pattern::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  border: 1.5px dashed rgba(83,57,47,.16);
+  border-radius: 50%;
+  translate: 0 -50%;
+  box-shadow: inset 0 0 0 8px rgba(255,248,225,.07);
+}
+.table-pattern::before { left: 9%; }
+.table-pattern::after { right: 9%; }
+.deck-area {
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -48%);
+}
+.deck-area p {
+  margin: .5rem -.8rem 0;
+  padding: .22rem .55rem;
+  justify-content: center;
+  background: rgba(255,247,229,.54);
+  border: 1px solid rgba(83,57,47,.12);
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.your-tableau.tableau-shelf {
+  position: relative;
+  z-index: 6;
+  inset: auto;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin: -1.8rem .05rem 0;
+  padding: .58rem .68rem .68rem;
+  background:
+    linear-gradient(180deg, rgba(255,250,235,.86), rgba(236,211,176,.91)),
+    repeating-linear-gradient(90deg, transparent 0 60px, rgba(102,64,43,.035) 61px 62px);
+  border: 1.5px solid rgba(78,59,62,.54);
+  border-bottom-width: 3px;
+  border-radius: 19px 19px 14px 14px;
+  box-shadow: 0 7px 0 rgba(103,69,52,.2), 0 14px 25px rgba(72,44,35,.13), inset 0 1px rgba(255,255,255,.66);
+}
+.tableau-heading {
+  min-height: 38px;
+  align-items: center;
+  gap: .7rem;
+}
+.tableau-title-group { min-width: 0; }
+.tableau-title-group .eyebrow { margin: 0 0 .08rem; font-size: .52rem; }
+.tableau-heading h2 { color: var(--ink); font-size: .9rem; }
+.tableau-tools { display: flex; align-items: center; justify-content: flex-end; gap: .55rem; }
+.tableau-tools #tableau-score {
+  padding: .28rem .52rem;
+  color: #765b4f;
+  background: rgba(255,250,240,.72);
+  border: 1px solid rgba(78,59,62,.15);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.card-guide-button { min-height: 36px; padding: .35rem .6rem; font-size: .7rem; }
+.tableau-cards {
+  min-height: 105px;
+  margin-top: .32rem;
+  padding: .42rem .5rem .55rem;
+  align-items: end;
+  background: rgba(255,252,242,.33);
+  border-style: solid;
+  border-color: rgba(78,59,62,.22);
+  box-shadow: inset 0 7px 14px rgba(95,61,44,.055);
+}
+.tableau-cards .game-card.is-compact { cursor: zoom-in; }
+.tableau-cards .game-card.is-compact:focus-visible {
+  outline: 3px solid rgba(76,155,141,.75);
+  outline-offset: 3px;
+}
+.tableau-shelf + .hand-dock { margin-top: .55rem; }
+
+/* Full-card portal avoids clipping inside the horizontally scrolling café shelf. */
+.tableau-preview {
+  position: fixed;
+  z-index: 180;
+  width: 166px;
+  pointer-events: none;
+  filter: drop-shadow(0 20px 22px rgba(55,34,30,.26));
+  animation: preview-pop .16s cubic-bezier(.2,.8,.25,1.1) both;
+}
+.tableau-preview .game-card,
+.tableau-preview .game-card:not(.is-compact) {
+  width: 166px;
+  min-width: 166px;
+  min-height: 250px;
+  box-shadow: 0 7px 0 #50363b, 0 20px 36px rgba(63,39,33,.24);
+}
+.tableau-preview .game-card:hover { transform: none; }
+@keyframes preview-pop { from { opacity: 0; scale: .9; translate: 0 8px; } }
+
+/* Contextual catalogue: only cards that can appear in the current menu. */
+.card-guide-dialog { width: min(calc(100% - 1.25rem), 1040px); }
+.card-guide-body { max-height: 68dvh; background: linear-gradient(180deg, #fffdf8, #fbf3e6); }
+.card-guide-groups { display: grid; gap: 1.25rem; }
+.card-guide-group h3 {
+  margin: 0 0 .65rem;
+  padding-bottom: .42rem;
+  color: #735950;
+  border-bottom: 1px dashed #d9c3ae;
+  font-size: .98rem;
+  letter-spacing: .035em;
+}
+.card-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.card-guide-item {
+  min-width: 0;
+  padding: .62rem;
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  align-items: center;
+  gap: .75rem;
+  background: rgba(255,255,255,.78);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(91,61,52,.06);
+}
+.card-guide-item .game-card,
+.card-guide-item .game-card:not(.is-compact) {
+  width: 108px;
+  min-width: 108px;
+  min-height: 166px;
+  padding: .24rem;
+  border-radius: 13px;
+  box-shadow: 0 3px 0 #50363b, 0 7px 12px rgba(78,59,62,.13);
+  pointer-events: none;
+}
+.card-guide-item .card-info { min-height: 55px; margin-top: -7px; padding: .26rem; }
+.card-guide-item .card-name { font-size: .62rem; }
+.card-guide-item .card-rule { min-height: 23px; margin-top: .14rem; }
+.card-guide-item .card-rule-kicker { font-size: .38rem; }
+.card-guide-item .card-rule-main { font-size: .63rem; }
+.card-guide-item .card-ladder b { font-size: .37rem; }
+.card-guide-item .card-ladder strong { font-size: .49rem; }
+.card-guide-item .game-card[data-card-type^="drink_"] .card-rule-main,
+.card-guide-item .game-card[data-card-type^="tray_race_"] .card-rule-main,
+.card-guide-item .game-card[data-card-type="shared_sprinkles"] .card-rule-main { font-size: .45rem; }
+.card-guide-copy strong { display: block; margin-bottom: .28rem; font: 900 .9rem/1.05 var(--font-display); }
+.card-guide-copy p { margin: 0; font-size: .72rem; line-height: 1.38; }
+
+@media (min-width: 700px) {
+  .table-center { min-height: clamp(105px, 16vh, 175px); }
+  .table-pattern { height: clamp(100px, 15vh, 165px); }
+  .your-tableau.tableau-shelf { width: min(94%, 1120px); margin: -2.15rem auto 0; padding-inline: .85rem; }
+  .tableau-cards { min-height: 112px; gap: .35rem; }
+  .tableau-heading h2 { font-size: 1rem; }
+}
+
+@media (min-width: 1100px) {
+  .table-center { min-height: clamp(120px, 18vh, 195px); }
+  .table-pattern { height: clamp(112px, 17vh, 185px); }
+  .your-tableau.tableau-shelf { width: min(88%, 1180px); }
+  .card-guide-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 699px) {
+  .card-guide-grid { grid-template-columns: 1fr; }
+  .card-guide-button span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .card-guide-button { width: 38px; padding: 0; }
+  .tableau-tools { gap: .35rem; }
+  .tableau-tools #tableau-score { font-size: .58rem; }
+}
+
+@media (max-width: 430px) {
+  .your-tableau.tableau-shelf { margin-top: -1.35rem; padding-inline: .5rem; }
+  .tableau-cards { margin-inline: -.08rem; }
+  .card-guide-item { grid-template-columns: 92px minmax(0, 1fr); gap: .6rem; }
+  .card-guide-item .game-card,
+  .card-guide-item .game-card:not(.is-compact) { width: 92px; min-width: 92px; min-height: 142px; }
+  .card-guide-item .card-info { min-height: 49px; }
+  .card-guide-item .card-name { font-size: .53rem; }
+  .card-guide-copy strong { font-size: .82rem; }
+  .card-guide-copy p { font-size: .68rem; }
+}
+
+@media (min-width: 700px) and (max-height: 820px) {
+  .your-tableau.tableau-shelf { top: auto; margin-top: -2rem; }
+  .table-center { min-height: 110px; }
+  .table-pattern { height: 104px; }
+  .tableau-cards { min-height: 104px; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .table-center { display: none; }
+  .your-tableau.tableau-shelf {
+    position: absolute;
+    inset: 116px 48% .3rem .3rem;
+    width: auto;
+    margin: 0;
+    padding: .4rem .45rem;
+    overflow: hidden;
+  }
+  .tableau-heading { min-height: 32px; }
+  .tableau-title-group .eyebrow { display: none; }
+  .tableau-cards { height: calc(100% - 36px); min-height: 0; margin-top: .2rem; }
+  .tableau-preview { width: 118px; }
+  .tableau-preview .game-card,
+  .tableau-preview .game-card:not(.is-compact) { width: 118px; min-width: 118px; min-height: 176px; }
+  .card-guide-dialog { max-height: 96dvh; }
+  .card-guide-body { max-height: 56dvh; }
+}

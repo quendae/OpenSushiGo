@@ -172,6 +172,7 @@ function handleMilestone(view) {
 
 function renderGame(view) {
   if (!view?.me) return;
+  hideTableauPreview();
   const ownLocked = Boolean(view.selections?.find((selection) => selection.seat === view.seat)?.locked);
   const handSignature = `${view.round}:${view.turn}:${view.me.hand?.map((card) => card.id).join(',')}`;
   const handChanged = app.handSignature !== handSignature;
@@ -232,6 +233,7 @@ function renderGame(view) {
       element.style.setProperty('--card-index', index);
       if (tableauChanged) element.classList.add('is-landing');
       if (card.flipped) element.classList.add('is-flipped');
+      if (!canTarget) element.tabIndex = 0;
       return element;
     }));
   } else {
@@ -292,6 +294,103 @@ function familyLabel(value) {
     fruit_basket: 'Owocowy koszyk', adoption_pet: 'Adopcja', bunny_guest: 'Króliczek', cat_guest: 'Kotek', dog_guest: 'Piesek',
   };
   return labels[value] ?? CARD_PRESENTATION[value]?.name ?? value;
+}
+
+const FAMILY_CARD_TYPES = Object.freeze({
+  drink: ['drink_1', 'drink_2', 'drink_3'],
+  tray_race: ['tray_race_1', 'tray_race_2', 'tray_race_3'],
+  sandwich: ['sandwich_circle', 'sandwich_triangle', 'sandwich_square', 'sandwich_rectangle'],
+});
+
+function expandGuideFamilies(families) {
+  return [...new Set(families.flatMap((family) => FAMILY_CARD_TYPES[family] ?? [family]))];
+}
+
+function currentGuideGroups(view) {
+  if (view.variant !== 'party' || !view.partyMenu) {
+    return [
+      { title: 'Zestawy i kolekcje', types: ['cookie_set', 'afternoon_set', 'sweet_bun'] },
+      { title: 'Kakao i popularność', types: ['drink_1', 'drink_2', 'drink_3'] },
+      { title: 'Goście', types: ['bunny_guest', 'cat_guest', 'dog_guest'] },
+      { title: 'Dodatki specjalne', types: ['cream_topping', 'extra_paws'] },
+      { title: 'Punktacja na koniec gry', types: ['adoption_pet'] },
+    ];
+  }
+  const menu = view.partyMenu;
+  return [
+    { title: 'Goście — są w każdym menu', types: ['bunny_guest', 'cat_guest', 'dog_guest'] },
+    { title: 'Wyścig', types: expandGuideFamilies([menu.roll]) },
+    { title: 'Przekąski', types: expandGuideFamilies(menu.appetizers ?? []) },
+    { title: 'Dodatki specjalne', types: expandGuideFamilies(menu.specials ?? []) },
+    { title: 'Deser — punktuje na koniec gry', types: expandGuideFamilies([menu.dessert]) },
+  ];
+}
+
+function renderCardGuide(view) {
+  const groups = byId('card-guide-groups');
+  if (!groups || !view) return;
+  const party = view.variant === 'party' && view.partyMenu;
+  byId('card-guide-title').textContent = party ? view.partyMenu.name : 'Klasyczne Puchate Café';
+  byId('card-guide-subtitle').textContent = party
+    ? 'To wszystkie rodziny kart używane w bieżącym menu. Symbole na kartach pokazują dokładnie, ile zebrać i ile punktów zdobyć.'
+    : 'To wszystkie karty klasycznego wariantu. Symbole na kartach pokazują dokładnie, ile zebrać i ile punktów zdobyć.';
+  groups.replaceChildren(...currentGuideGroups(view).map((definition) => {
+    const section = document.createElement('section');
+    section.className = 'card-guide-group';
+    const heading = document.createElement('h3');
+    heading.textContent = definition.title;
+    const grid = document.createElement('div');
+    grid.className = 'card-guide-grid';
+    grid.replaceChildren(...definition.types.map((type) => {
+      const meta = CARD_PRESENTATION[type];
+      const item = document.createElement('article');
+      item.className = 'card-guide-item';
+      const example = createCard(type, { selectable: false });
+      example.removeAttribute('title');
+      example.setAttribute('aria-hidden', 'true');
+      const copy = document.createElement('div');
+      copy.className = 'card-guide-copy';
+      copy.innerHTML = `<strong>${escapeHTML(meta?.name ?? familyLabel(type))}</strong><p>${escapeHTML(meta?.description ?? '')}</p>`;
+      item.append(example, copy);
+      return item;
+    }));
+    section.append(heading, grid);
+    return section;
+  }));
+}
+
+function currentTableauCards() {
+  if (!app.view?.me) return [];
+  return [...(app.view.me.playedThisRound ?? []), ...(app.view.me.desserts ?? app.view.me.adoptionPets ?? [])];
+}
+
+function hideTableauPreview() {
+  const preview = byId('tableau-preview');
+  if (!preview) return;
+  preview.hidden = true;
+  preview.replaceChildren();
+}
+
+function showTableauPreview(cardId, anchor) {
+  const preview = byId('tableau-preview');
+  const card = currentTableauCards().find((candidate) => candidate.id === cardId);
+  if (!preview || !card || !anchor) return;
+  const largeCard = createCard(card, { selectable: false });
+  largeCard.classList.add('tableau-preview-card');
+  if (card.flipped) largeCard.classList.add('is-flipped');
+  largeCard.removeAttribute('title');
+  preview.replaceChildren(largeCard);
+  preview.hidden = false;
+
+  const anchorBox = anchor.getBoundingClientRect();
+  const previewBox = preview.getBoundingClientRect();
+  const gap = 12;
+  const left = Math.max(gap, Math.min(window.innerWidth - previewBox.width - gap, anchorBox.left + (anchorBox.width - previewBox.width) / 2));
+  const top = anchorBox.top > previewBox.height + gap * 2
+    ? anchorBox.top - previewBox.height - gap
+    : Math.min(window.innerHeight - previewBox.height - gap, anchorBox.bottom + gap);
+  preview.style.left = `${Math.round(left)}px`;
+  preview.style.top = `${Math.max(gap, Math.round(top))}px`;
 }
 
 function renderSpoonControl(available, disabled, view) {
@@ -636,6 +735,7 @@ function startOnlineGame() {
 }
 
 function goHome() {
+  hideTableauPreview();
   app.multiplayer?.close();
   app.multiplayer = null;
   app.state = null;
@@ -657,6 +757,12 @@ document.addEventListener('click', async (event) => {
     if (input && !input.value) input.value = localStorage.getItem(SIGNALING_KEY) || '';
   } else if (action === 'back-home' || action === 'home' || action === 'leave-lobby') goHome();
   else if (action === 'rules') openDialog('rules-dialog');
+  else if (action === 'card-guide') {
+    hideTableauPreview();
+    renderCardGuide(app.view);
+    void sound.play('menu');
+    openDialog('card-guide-dialog');
+  }
   else if (action === 'play-card') toggleCard(target.dataset.cardId);
   else if (action === 'tableau-card') toggleTableauTarget(target.dataset.cardId);
   else if (action === 'choose-menu-card') await chooseMenuCard(target.dataset.cardId);
@@ -690,6 +796,26 @@ document.addEventListener('click', async (event) => {
     target.innerHTML = icon(muted ? 'sound-off' : 'sound');
     showToast(muted ? 'Dźwięki wyłączone.' : 'Dźwięki włączone.');
   }
+});
+
+document.addEventListener('pointerover', (event) => {
+  const card = event.target.closest?.('#tableau .game-card');
+  if (card && !card.contains(event.relatedTarget)) showTableauPreview(card.dataset.cardId, card);
+});
+
+document.addEventListener('pointerout', (event) => {
+  const card = event.target.closest?.('#tableau .game-card');
+  if (card && !card.contains(event.relatedTarget)) hideTableauPreview();
+});
+
+document.addEventListener('focusin', (event) => {
+  const card = event.target.closest?.('#tableau .game-card');
+  if (card) showTableauPreview(card.dataset.cardId, card);
+});
+
+document.addEventListener('focusout', (event) => {
+  const card = event.target.closest?.('#tableau .game-card');
+  if (card && !card.contains(event.relatedTarget)) hideTableauPreview();
 });
 
 document.addEventListener('pointerdown', () => { void sound.unlock(); }, { capture: true });

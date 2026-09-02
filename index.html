@@ -210,11 +210,18 @@
             <div class="deck-stack"><i></i><i></i><span data-icon="paw"></span></div>
             <p><span data-icon="rotate" aria-hidden="true"></span> Ręce wędrują w lewo</p>
           </div>
-          <section class="your-tableau" aria-labelledby="tableau-title">
-            <div class="tableau-heading"><h2 id="tableau-title">Twoja kawiarnia</h2><span id="tableau-score">0 pkt w rundzie</span></div>
-            <div id="tableau" class="tableau-cards" aria-live="polite"><p class="empty-tableau">Zagrane karty pojawią się tutaj</p></div>
-          </section>
         </div>
+
+        <section class="your-tableau tableau-shelf" aria-labelledby="tableau-title">
+          <div class="tableau-heading">
+            <div class="tableau-title-group"><p class="eyebrow">Zagrane karty</p><h2 id="tableau-title">Twoja kawiarnia</h2></div>
+            <div class="tableau-tools">
+              <span id="tableau-score">0 pkt w rundzie</span>
+              <button class="soft-button card-guide-button" type="button" data-action="card-guide"><span data-icon="book" aria-hidden="true"></span><span>Karty i punktacja</span></button>
+            </div>
+          </div>
+          <div id="tableau" class="tableau-cards" aria-live="polite"><p class="empty-tableau">Zagrane karty pojawią się tutaj</p></div>
+        </section>
 
         <section class="hand-dock" aria-labelledby="hand-title">
           <div class="hand-heading">
@@ -257,6 +264,15 @@
     <div class="dialog-body"><div id="menu-options" class="menu-options" aria-live="polite"></div></div>
   </dialog>
 
+  <dialog id="card-guide-dialog" class="game-dialog card-guide-dialog" aria-labelledby="card-guide-title">
+    <div class="dialog-header">
+      <div><p class="eyebrow">Ściąga do rozgrywki</p><h2 id="card-guide-title">Karty i punktacja</h2><p id="card-guide-subtitle">Wszystkie karty używane w tym wariancie.</p></div>
+      <button class="icon-button" type="button" data-close-dialog aria-label="Zamknij katalog kart"><span data-icon="close"></span></button>
+    </div>
+    <div class="dialog-body card-guide-body"><div id="card-guide-groups" class="card-guide-groups"></div></div>
+    <div class="dialog-footer"><button class="primary-button" type="button" data-close-dialog>Wracam do gry</button></div>
+  </dialog>
+
   <dialog id="round-dialog" class="game-dialog result-dialog" aria-labelledby="round-result-title">
     <div class="result-burst" aria-hidden="true">✦</div>
     <div class="dialog-header"><div><p class="eyebrow">Kawiarnia zamknięta na dziś</p><h2 id="round-result-title">Podsumowanie rundy</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Zamknij"><span data-icon="close"></span></button></div>
@@ -276,6 +292,7 @@
   </dialog>
 
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <div id="tableau-preview" class="tableau-preview" hidden aria-hidden="true"></div>
 
   <script type="module" src="src/app.js"></script>
 </body>
