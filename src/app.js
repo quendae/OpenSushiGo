@@ -123,6 +123,8 @@ function startLocalGame(config = app.config) {
   app.useSpoon = false;
   app.requestedType = '';
   app.tableauTargetIds = [];
+  app.handSignature = null;
+  app.tableauSignature = null;
   app.lastEventSeq = -1;
   setScreen('game');
   updateFromState();
@@ -172,7 +174,8 @@ function renderGame(view) {
   if (!view?.me) return;
   const ownLocked = Boolean(view.selections?.find((selection) => selection.seat === view.seat)?.locked);
   const handSignature = `${view.round}:${view.turn}:${view.me.hand?.map((card) => card.id).join(',')}`;
-  if (app.handSignature !== handSignature || ownLocked) {
+  const handChanged = app.handSignature !== handSignature;
+  if (handChanged || ownLocked) {
     app.handSignature = handSignature;
     app.selectedIds = [];
     app.useExtraPaws = false;
@@ -212,6 +215,9 @@ function renderGame(view) {
   const tableau = byId('tableau');
   const dessertCards = view.me.desserts ?? view.me.adoptionPets ?? [];
   const cards = [...(view.me.playedThisRound ?? []), ...dessertCards];
+  const tableauSignature = cards.map((card) => `${card.id}:${card.copiedType ?? ''}:${card.flipped ? 1 : 0}`).join(',');
+  const tableauChanged = app.tableauSignature !== tableauSignature;
+  app.tableauSignature = tableauSignature;
   const selectedHandCard = view.me.hand?.find((card) => app.selectedIds.includes(card.id));
   const targetsTableau = selectedHandCard?.type === 'special_order' || selectedHandCard?.type === 'takeout_box';
   if (cards.length) {
@@ -224,6 +230,7 @@ function renderGame(view) {
         selected: app.tableauTargetIds.includes(card.id),
       });
       element.style.setProperty('--card-index', index);
+      if (tableauChanged) element.classList.add('is-landing');
       if (card.flipped) element.classList.add('is-flipped');
       return element;
     }));
@@ -238,6 +245,7 @@ function renderGame(view) {
   hand.replaceChildren(...(view.me.hand ?? []).map((card, index) => {
     const element = createCard(card, { selected: app.selectedIds.includes(card.id), disabled });
     element.style.setProperty('--card-index', index);
+    if (handChanged) element.classList.add('is-dealing');
     return element;
   }));
 
@@ -312,7 +320,12 @@ function renderMenuChoice(view) {
     return;
   }
   const options = byId('menu-options');
-  options.replaceChildren(...view.specialChoice.options.map((card) => createCard(card, { action: 'choose-menu-card' })));
+  options.replaceChildren(...view.specialChoice.options.map((card, index) => {
+    const element = createCard(card, { action: 'choose-menu-card' });
+    element.style.setProperty('--card-index', index);
+    element.classList.add('is-dealing');
+    return element;
+  }));
   if (!dialog.open) openDialog(dialog);
 }
 
@@ -409,15 +422,25 @@ async function commitSelection() {
 
 async function runHostBots() {
   if (!app.state || !['draft', 'special_action'].includes(app.state.phase)) return;
-  const bots = app.state.players.filter((player) => player.kind === 'bot');
-  for (const bot of bots) {
-    if (!['draft', 'special_action'].includes(app.state.phase)) break;
-    if (app.state.phase === 'draft' && app.state.pendingSelections[String(bot.seat)]) continue;
-    const view = getPlayerView(app.state, bot.seat);
-    const action = chooseBotAction(view, bot.difficulty);
-    if (action) app.state = action.type === 'choose_menu_card'
-      ? dispatchSpecialAction(app.state, bot.seat, action)
-      : dispatchAction(app.state, bot.seat, action);
+  const maximumSteps = app.state.players.length * 4;
+  for (let step = 0; step < maximumSteps; step += 1) {
+    if (app.state.phase === 'draft') {
+      const bot = app.state.players.find((player) => player.kind === 'bot' && !app.state.pendingSelections[String(player.seat)]);
+      if (!bot) break;
+      const action = chooseBotAction(getPlayerView(app.state, bot.seat), bot.difficulty);
+      if (!action) break;
+      app.state = dispatchAction(app.state, bot.seat, action);
+      continue;
+    }
+    if (app.state.phase === 'special_action') {
+      const waitingBot = app.state.players.find((player) => player.kind === 'bot' && app.state.pendingSpecials[String(player.seat)] && !app.state.pendingSpecials[String(player.seat)].choice);
+      if (!waitingBot) break;
+      const action = chooseBotAction(getPlayerView(app.state, waitingBot.seat), waitingBot.difficulty);
+      if (!action || action.type !== 'choose_menu_card') break;
+      app.state = dispatchSpecialAction(app.state, waitingBot.seat, action);
+      continue;
+    }
+    break;
   }
   updateFromState();
 }
@@ -663,9 +686,13 @@ document.addEventListener('click', async (event) => {
   else if (action === 'toggle-sound') {
     const muted = sound.toggle();
     target.setAttribute('aria-pressed', String(!muted));
+    target.setAttribute('aria-label', muted ? 'Włącz dźwięki' : 'Wycisz dźwięki');
+    target.innerHTML = icon(muted ? 'sound-off' : 'sound');
     showToast(muted ? 'Dźwięki wyłączone.' : 'Dźwięki włączone.');
   }
 });
+
+document.addEventListener('pointerdown', () => { void sound.unlock(); }, { capture: true });
 
 document.addEventListener('change', (event) => {
   if (event.target.id === 'spoon-request') {
@@ -718,6 +745,10 @@ byId('join-form')?.addEventListener('submit', (event) => { event.preventDefault(
 
 const soundToggle = document.querySelector('[data-action="toggle-sound"]');
 soundToggle?.setAttribute('aria-pressed', String(!sound.muted));
+if (soundToggle) {
+  soundToggle.setAttribute('aria-label', sound.muted ? 'Włącz dźwięki' : 'Wycisz dźwięki');
+  soundToggle.innerHTML = icon(sound.muted ? 'sound-off' : 'sound');
+}
 updateVariantControls('classic', 'local');
 updateVariantControls('classic', 'host');
 setScreen('home');

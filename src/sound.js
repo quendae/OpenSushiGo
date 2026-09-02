@@ -15,9 +15,25 @@ class CafeSound {
     return this.context;
   }
 
+  async unlock() {
+    try {
+      const context = await this.ensure();
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.dataset.audioState = this.muted ? 'muted' : (context?.state ?? 'unavailable');
+      }
+      return context;
+    } catch {
+      if (typeof document !== 'undefined' && document.body) document.body.dataset.audioState = 'unavailable';
+      return null;
+    }
+  }
+
   setMuted(value) {
     this.muted = Boolean(value);
     localStorage.setItem(STORAGE_KEY, this.muted ? 'off' : 'on');
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.dataset.audioState = this.muted ? 'muted' : (this.context?.state ?? 'ready');
+    }
     if (!this.muted) void this.play('select');
     return this.muted;
   }
@@ -33,7 +49,8 @@ class CafeSound {
     oscillator.frequency.setValueAtTime(frequency, start);
     if (options.to) oscillator.frequency.exponentialRampToValueAtTime(options.to, start + duration);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(options.volume ?? 0.055, start + Math.min(.018, duration / 3));
+    const audibleVolume = Math.min((options.volume ?? 0.055) * 2.2, 0.2);
+    gain.gain.exponentialRampToValueAtTime(audibleVolume, start + Math.min(.018, duration / 3));
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     oscillator.connect(gain).connect(ctx.destination);
     oscillator.start(start);
@@ -51,7 +68,7 @@ class CafeSound {
     const gain = ctx.createGain();
     filter.type = 'highpass';
     filter.frequency.value = 900;
-    gain.gain.setValueAtTime(volume, start);
+    gain.gain.setValueAtTime(Math.min(volume * 1.8, 0.12), start);
     gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
     source.buffer = buffer;
     source.connect(filter).connect(gain).connect(ctx.destination);
@@ -59,8 +76,9 @@ class CafeSound {
   }
 
   async play(name) {
-    const ctx = await this.ensure();
+    const ctx = await this.unlock();
     if (!ctx) return;
+    if (typeof document !== 'undefined' && document.body) document.body.dataset.lastSound = name;
     const now = ctx.currentTime + .008;
     if (name === 'select') {
       this.tone(520, now, .09, { to: 710, volume: .045 });

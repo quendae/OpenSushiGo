@@ -298,4 +298,72 @@ p { color: var(--muted); }
   .variant-control { grid-template-columns: 1fr; }
   .menu-options .game-card { width: 135px; min-width: 135px; }
   .bonus-control { display: grid; grid-template-columns: 1fr; }
+  .opponents { min-height: 72px; margin-block: .55rem; }
+  .table-center { min-height: 175px; }
+  .table-pattern { height: 165px; }
+  .tableau-cards { min-height: 78px; }
+}
+
+/* Stable hand rendering: animate only genuinely new cards, never a selection repaint. */
+.game-card { animation: none; will-change: auto; }
+.game-card.is-dealing { animation: card-deal .42s cubic-bezier(.2,.85,.25,1.12) both; animation-delay: calc(var(--card-index, 0) * 24ms); }
+.game-card.is-selected { animation: selected-glow 1.8s ease-in-out infinite; }
+.game-card.is-compact { animation: none; }
+.game-card.is-compact.is-landing { animation: card-land .34s cubic-bezier(.2,.85,.25,1.08) both; animation-delay: calc(var(--card-index, 0) * 22ms); }
+
+/* Larger, more legible cards and a more substantial bottom tray. */
+.hand-dock { background: linear-gradient(180deg, rgba(255,253,247,.99), rgba(255,247,232,.99)); border-top-width: 3px; box-shadow: 0 -15px 38px rgba(63,42,36,.2); }
+.hand { min-height: 242px; }
+.game-card:not(.is-compact) { width: 150px; min-width: 150px; min-height: 226px; }
+.card-info { min-height: 74px; padding: .48rem .44rem .42rem; }
+.card-name { font-size: .84rem; line-height: .98; }
+.card-rule { min-height: 32px; margin-top: .28rem; }
+.card-rule-kicker { font-size: .54rem; }
+.card-rule-main { font-size: .9rem; }
+.card-ladder { font-size: .62rem; }
+.card-ladder b { font-size: .52rem; }
+.card-ladder strong { font-size: .7rem; }
+.game-card[data-card-type^="drink_"] .card-rule-main { font-size: .7rem; }
+.game-card[data-card-type="adoption_pet"] .card-rule-main { font-size: .78rem; }
+.game-card[data-card-type^="tray_race_"] .card-rule-main,
+.game-card[data-card-type="shared_sprinkles"] .card-rule-main { font-size: .59rem; }
+.game-card[data-card-type="fruit_basket"] .card-rule-kicker { font-size: .47rem; }
+.game-card[data-card-type="fruit_basket"] .card-ladder b { font-size: .47rem; }
+.game-card[data-card-type="fruit_basket"] .card-ladder strong { font-size: .64rem; }
+
+@media (min-width: 700px) {
+  .hand { min-height: 270px; }
+  .game-card:not(.is-compact) { width: 158px; min-width: 158px; min-height: 244px; }
+  .card-name { font-size: .87rem; }
+}
+
+@media (min-width: 1100px) {
+  .game-card:not(.is-compact) { width: clamp(136px, 10.8vw, 156px); min-width: clamp(136px, 10.8vw, 156px); min-height: 240px; }
+  .hand .game-card { margin-left: -26px; }
+  .hand .game-card:first-child { margin-left: 0; }
+  .card-name { font-size: .91rem; }
+  .card-rule-main { font-size: .96rem; }
+}
+
+@media (min-width: 700px) and (max-height: 820px) {
+  .opponents { min-height: 72px; margin-top: .25rem; }
+  .table-center { min-height: 150px; }
+  .table-pattern { height: 145px; }
+  .your-tableau { top: 72px; }
+  .tableau-cards { min-height: 72px; }
+  .hand-dock { margin-top: .25rem; padding-top: .65rem; padding-bottom: .65rem; }
+  .hand { min-height: 228px; margin-top: .25rem; padding-bottom: .35rem; }
+  .game-card:not(.is-compact) { min-height: 218px; }
+  .card-info { min-height: 66px; }
+  .hand-actions { position: absolute; right: 1.2rem; bottom: .55rem; left: 1.2rem; }
+  .hand-dock { padding-bottom: 3.65rem; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .game-card:not(.is-compact) { width: 112px; min-width: 112px; min-height: 167px; }
+  .card-info { min-height: 54px; padding: .3rem; }
+  .card-name { font-size: .58rem; }
+  .card-rule { min-height: 24px; margin-top: .15rem; }
+  .card-rule-kicker { font-size: .4rem; }
+  .card-rule-main { font-size: .63rem; }
 }
